@@ -3,6 +3,7 @@ import { Application } from '@/types/application';
 import { parseJobAlert, ParsedJob } from '@/lib/emailParser';
 import { parsePDFJobOffer } from '@/lib/pdfJobParser';
 import { parseTextJobOffer } from '@/lib/textJobParser';
+import { parsePDFFile } from '@/lib/pdfParser';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -58,11 +59,9 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     
     setPdfFile(file);
     
-    // Lire le PDF (simulation - en production utiliser une lib comme pdf.js)
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const job = parsePDFJobOffer(text);
+    // Parse PDF with pdf.js
+    try {
+      const job = await parsePDFFile(file);
       if (job) {
         setParsedJobs([job]);
         setSelectedJobs(new Set([0]));
@@ -71,8 +70,11 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
         setParsedJobs([]);
         toast.error('Impossible d\'analyser le PDF');
       }
-    };
-    reader.readAsText(file);
+    } catch (error) {
+      console.error('Error parsing PDF:', error);
+      setParsedJobs([]);
+      toast.error('Erreur lors de l\'analyse du PDF');
+    }
   };
 
   const handleJobSelection = (index: number) => {
