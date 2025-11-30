@@ -79,3 +79,12 @@ export const sorayaProfile = {
     management: "Fédérer les énergies multiculturelles vers un objectif commun d'excellence opérationnelle."
   }
 };
+
+export const profileSkills = [
+  'Gestion de projet',
+  'Communication',
+  'Marketing digital',
+  'Événementiel',
+  'Leadership',
+  'Innovation sociale'
+];

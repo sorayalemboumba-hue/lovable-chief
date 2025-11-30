@@ -6,6 +6,10 @@ import { StatsCards } from '@/components/StatsCards';
 import { ApplicationCard } from '@/components/ApplicationCard';
 import { ApplicationForm } from '@/components/ApplicationForm';
 import { CoachingPanel } from '@/components/CoachingPanel';
+import { IntelligentTools } from '@/components/IntelligentTools';
+import { EmailImportModal } from '@/components/EmailImportModal';
+import { CVGeneratorModal } from '@/components/CVGeneratorModal';
+import { LetterGeneratorModal } from '@/components/LetterGeneratorModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Target } from 'lucide-react';
@@ -16,6 +20,9 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApplication, setEditingApplication] = useState<Application | undefined>();
+  const [isEmailImportOpen, setIsEmailImportOpen] = useState(false);
+  const [selectedApplicationForCV, setSelectedApplicationForCV] = useState<Application | null>(null);
+  const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
 
   const filteredApplications = applications.filter(app => 
     app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -57,6 +64,39 @@ const Index = () => {
     setIsFormOpen(true);
   };
 
+  const handleImportJobs = (jobs: Partial<Application>[]) => {
+    const newApplications = jobs.map(job => ({
+      ...job,
+      id: Date.now().toString() + Math.random(),
+      createdAt: new Date().toISOString(),
+    } as Application));
+    setApplications([...applications, ...newApplications]);
+  };
+
+  const handleSaveCV = (cvUrl: string) => {
+    if (selectedApplicationForCV) {
+      setApplications(applications.map(app =>
+        app.id === selectedApplicationForCV.id
+          ? { ...app, url: cvUrl }
+          : app
+      ));
+      toast.success('CV sauvegardé');
+    }
+    setSelectedApplicationForCV(null);
+  };
+
+  const handleSaveLetter = (lettreUrl: string) => {
+    if (selectedApplicationForLetter) {
+      setApplications(applications.map(app =>
+        app.id === selectedApplicationForLetter.id
+          ? { ...app, url: lettreUrl }
+          : app
+      ));
+      toast.success('Lettre sauvegardée');
+    }
+    setSelectedApplicationForLetter(null);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       {/* Header */}
@@ -83,8 +123,9 @@ const Index = () => {
 
       <main className="container mx-auto px-6 py-8">
         {/* Stats */}
-        <div className="mb-8">
+        <div className="mb-8 space-y-6">
           <StatsCards applications={applications} />
+          <IntelligentTools onImportEmail={() => setIsEmailImportOpen(true)} />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -126,6 +167,8 @@ const Index = () => {
                     application={application}
                     onEdit={() => handleEdit(application)}
                     onDelete={() => handleDelete(application.id)}
+                    onGenerateCV={() => setSelectedApplicationForCV(application)}
+                    onGenerateLetter={() => setSelectedApplicationForLetter(application)}
                   />
                 ))}
               </div>
@@ -139,7 +182,7 @@ const Index = () => {
         </div>
       </main>
 
-      {/* Form Modal */}
+      {/* Modals */}
       <ApplicationForm
         application={editingApplication}
         open={isFormOpen}
@@ -149,6 +192,30 @@ const Index = () => {
         }}
         onSave={handleSave}
       />
+
+      <EmailImportModal
+        open={isEmailImportOpen}
+        onClose={() => setIsEmailImportOpen(false)}
+        onImport={handleImportJobs}
+      />
+
+      {selectedApplicationForCV && (
+        <CVGeneratorModal
+          candidature={selectedApplicationForCV}
+          open={true}
+          onClose={() => setSelectedApplicationForCV(null)}
+          onSave={handleSaveCV}
+        />
+      )}
+
+      {selectedApplicationForLetter && (
+        <LetterGeneratorModal
+          candidature={selectedApplicationForLetter}
+          open={true}
+          onClose={() => setSelectedApplicationForLetter(null)}
+          onSave={handleSaveLetter}
+        />
+      )}
     </div>
   );
 };
