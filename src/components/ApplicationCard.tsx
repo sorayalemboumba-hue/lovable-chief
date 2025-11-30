@@ -2,7 +2,7 @@ import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye } from 'lucide-react';
+import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList } from 'lucide-react';
 import { formatDate, getDaysUntil, isOverdue, isUrgent } from '@/lib/dateUtils';
 import { downloadIcs } from '@/lib/icsExport';
 import { supabase } from '@/integrations/supabase/client';
@@ -113,6 +113,96 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
       {onUpdate && (
         <div className="mt-4">
           <ApplicationChecklist application={application} onUpdate={onUpdate} />
+        </div>
+      )}
+
+      {/* Nouvelles informations extraites */}
+      {(application.publicationDate || application.applicationEmail || application.applicationInstructions || (application.requiredDocuments && application.requiredDocuments.length > 0)) && (
+        <div className="mt-4 pt-4 border-t space-y-3">
+          {application.publicationDate && (
+            <div className="flex items-start gap-2 text-sm">
+              <CalendarCheck className="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div>
+                <span className="text-muted-foreground">Publiée le:</span>
+                <span className="ml-1 font-medium">{formatDate(application.publicationDate)}</span>
+              </div>
+            </div>
+          )}
+          
+          {application.applicationEmail && (
+            <div className="flex items-start gap-2 text-sm">
+              <AtSign className="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div>
+                <span className="text-muted-foreground">Candidature à:</span>
+                <a href={`mailto:${application.applicationEmail}`} className="ml-1 font-medium text-primary hover:underline">
+                  {application.applicationEmail}
+                </a>
+              </div>
+            </div>
+          )}
+          
+          {application.applicationInstructions && (
+          <div className="flex items-start gap-2 text-sm">
+              <ClipboardList className="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div className="flex-1">
+                <span className="text-muted-foreground">Instructions:</span>
+                <p className="mt-1 text-xs bg-muted/50 p-2 rounded leading-relaxed">{application.applicationInstructions}</p>
+              </div>
+            </div>
+          )}
+          
+          {application.requiredDocuments && application.requiredDocuments.length > 0 && (
+            <div className="flex items-start gap-2 text-sm">
+              <FileText className="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div className="flex-1">
+                <span className="text-muted-foreground">Documents requis:</span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {application.requiredDocuments.map((doc, idx) => (
+                    <Badge key={idx} variant="secondary" className="text-xs">
+                      {doc}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Compétences et matching */}
+      {((application.matchingSkills && application.matchingSkills.length > 0) || (application.missingRequirements && application.missingRequirements.length > 0)) && (
+        <div className="mt-4 pt-4 border-t space-y-3">
+          {application.matchingSkills && application.matchingSkills.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-sm font-medium text-success flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Vos atouts pour ce poste
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {application.matchingSkills.map((skill, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs border-success/30 bg-success/5">
+                    {skill}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {application.missingRequirements && application.missingRequirements.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-sm font-medium text-warning flex items-center gap-2">
+                <ClipboardList className="w-4 h-4" />
+                Compétences à mettre en avant
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {application.missingRequirements.map((req, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs border-warning/30 bg-warning/5">
+                    {req}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

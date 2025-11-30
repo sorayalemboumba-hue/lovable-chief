@@ -200,6 +200,71 @@ Dans l'attente de votre réponse, je vous prie d'agréer, Madame, Monsieur, l'ex
   return doc.output('dataurlstring');
 };
 
+export const generateCustomCV = (content: string, application: Application): string => {
+  const doc = new jsPDF();
+  let y = 20;
+  
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+  
+  // Split content into lines and render
+  const lines = content.split('\n');
+  lines.forEach(line => {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    
+    // Detect headers (all caps or certain keywords)
+    if (line === line.toUpperCase() && line.trim().length > 0 && line.trim().length < 50) {
+      doc.setFontSize(12);
+      doc.setTextColor(40, 40, 40);
+      doc.text(line, 20, y);
+      y += 8;
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+    } else {
+      const wrappedLines = doc.splitTextToSize(line, 170);
+      doc.text(wrappedLines, 20, y);
+      y += wrappedLines.length * 5 + 2;
+    }
+  });
+  
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`CV généré pour: ${application.entreprise} - ${application.poste}`, 105, 290, { align: 'center' });
+  }
+  
+  return doc.output('dataurlstring');
+};
+
+export const generateCustomCoverLetter = (content: string, application: Application): string => {
+  const doc = new jsPDF();
+  let y = 20;
+  
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+  
+  // Split content into lines and render
+  const lines = content.split('\n');
+  lines.forEach(line => {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    
+    const wrappedLines = doc.splitTextToSize(line, 170);
+    doc.text(wrappedLines, 20, y);
+    y += wrappedLines.length * 6;
+  });
+  
+  return doc.output('dataurlstring');
+};
+
 export const downloadPDF = (dataUrl: string, filename: string) => {
   const link = document.createElement('a');
   link.href = dataUrl;
