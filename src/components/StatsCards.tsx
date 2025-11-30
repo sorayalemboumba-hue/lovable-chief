@@ -13,8 +13,9 @@ export function StatsCards({ applications }: StatsCardsProps) {
     const days = getDaysUntil(app.deadline);
     return days <= 3 && days >= 0;
   }).length;
-  const avgCompatibility = applications.length > 0
-    ? Math.round(applications.reduce((sum, app) => sum + (app.priorite * 20), 0) / applications.length)
+  const appsWithCompatibility = applications.filter(app => app.compatibility && app.compatibility > 0);
+  const avgCompatibility = appsWithCompatibility.length > 0
+    ? Math.round(appsWithCompatibility.reduce((sum, app) => sum + (app.compatibility || 0), 0) / appsWithCompatibility.length)
     : 0;
   const advanced = applications.filter(app => app.statut === 'soumise' || app.statut === 'entretien').length;
 

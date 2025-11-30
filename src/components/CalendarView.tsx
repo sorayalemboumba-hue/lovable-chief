@@ -29,7 +29,13 @@ export function CalendarView({ applications }: CalendarViewProps) {
 
   const getApplicationsForDate = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return applications.filter(app => app.deadline === dateStr);
+    return applications.filter(app => {
+      if (!app.deadline) return false;
+      const appDate = new Date(app.deadline);
+      return appDate.getDate() === day && 
+             appDate.getMonth() === month && 
+             appDate.getFullYear() === year;
+    });
   };
 
   const previousMonth = () => {

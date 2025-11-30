@@ -13,7 +13,21 @@ interface CompatibilityBadgeProps {
 }
 
 export function CompatibilityBadge({ application }: CompatibilityBadgeProps) {
-  const result = calculateCompatibility(application);
+  // Use AI-analyzed compatibility if available, otherwise fallback to local calculation
+  const hasAIAnalysis = application.compatibility !== undefined && application.compatibility !== null;
+  
+  const aiResult = hasAIAnalysis ? {
+    score: application.compatibility!,
+    matchingSkills: application.matchingSkills || [],
+    missingRequirements: application.missingRequirements || [],
+    recommendation: application.compatibility! >= 80 ? 'excellent' as const :
+                    application.compatibility! >= 70 ? 'good' as const :
+                    application.compatibility! >= 60 ? 'fair' as const : 'low' as const,
+    shouldApply: application.compatibility! >= 60
+  } : null;
+  
+  const localResult = !hasAIAnalysis ? calculateCompatibility(application) : null;
+  const result = aiResult || localResult!;
   
   const getIcon = () => {
     switch (result.recommendation) {
