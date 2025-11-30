@@ -10,9 +10,12 @@ import { IntelligentTools } from '@/components/IntelligentTools';
 import { EmailImportModal } from '@/components/EmailImportModal';
 import { CVGeneratorModal } from '@/components/CVGeneratorModal';
 import { LetterGeneratorModal } from '@/components/LetterGeneratorModal';
+import { CalendarView } from '@/components/CalendarView';
+import { TasksView } from '@/components/TasksView';
+import { ProductivityView } from '@/components/ProductivityView';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Target } from 'lucide-react';
+import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -23,6 +26,7 @@ const Index = () => {
   const [isEmailImportOpen, setIsEmailImportOpen] = useState(false);
   const [selectedApplicationForCV, setSelectedApplicationForCV] = useState<Application | null>(null);
   const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
 
   const filteredApplications = applications.filter(app => 
     app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -97,6 +101,20 @@ const Index = () => {
     setSelectedApplicationForLetter(null);
   };
 
+  const handleUpdateApplication = (id: string, updates: Partial<Application>) => {
+    setApplications(applications.map(app =>
+      app.id === id ? { ...app, ...updates } : app
+    ));
+  };
+
+  const tabs = [
+    { id: 'dashboard' as const, label: 'Tableau de bord', icon: BarChart3 },
+    { id: 'candidatures' as const, label: 'Candidatures', icon: Briefcase, badge: applications.length },
+    { id: 'calendrier' as const, label: 'Calendrier', icon: CalendarIcon },
+    { id: 'taches' as const, label: 'Tâches', icon: CheckCircle },
+    { id: 'productivite' as const, label: 'Productivité', icon: Zap },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       {/* Header */}
@@ -113,24 +131,64 @@ const Index = () => {
               </div>
             </div>
             
-            <Button onClick={handleNewApplication} size="lg" className="gap-2">
-              <Plus className="w-5 h-5" />
-              Nouvelle candidature
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                size="lg" 
+                onClick={() => setActiveTab('calendrier')}
+                className="gap-2"
+              >
+                <CalendarIcon className="w-5 h-5" />
+                Calendrier
+              </Button>
+              <Button onClick={handleNewApplication} size="lg" className="gap-2">
+                <Plus className="w-5 h-5" />
+                Nouvelle candidature
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        {/* Stats */}
-        <div className="mb-8 space-y-6">
-          <StatsCards applications={applications} />
-          <IntelligentTools onImportEmail={() => setIsEmailImportOpen(true)} />
+        {/* Navigation Tabs */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                  activeTab === tab.id 
+                    ? 'bg-primary text-primary-foreground shadow-lg' 
+                    : 'bg-card text-card-foreground hover:bg-muted border border-border'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                {tab.label}
+                {tab.badge !== undefined && (
+                  <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                    activeTab === tab.id 
+                      ? 'bg-primary-foreground text-primary' 
+                      : 'bg-primary/10 text-primary'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main content */}
-          <div className="lg:col-span-2 space-y-6">
+        {/* Dashboard */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            <StatsCards applications={applications} />
+            <IntelligentTools onImportEmail={() => setIsEmailImportOpen(true)} />
+            
+            <div className="grid lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-6">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -175,11 +233,79 @@ const Index = () => {
             )}
           </div>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <CoachingPanel tips={COACHING_LIBRARY} />
+              {/* Sidebar */}
+              <div className="lg:col-span-1">
+                <CoachingPanel tips={COACHING_LIBRARY} />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Candidatures */}
+        {activeTab === 'candidatures' && (
+          <div className="space-y-6">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher une candidature..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Applications list */}
+            {sortedApplications.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Target className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Aucune candidature</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchQuery ? 'Aucun résultat trouvé' : 'Commencez par ajouter votre première candidature'}
+                </p>
+                {!searchQuery && (
+                  <Button onClick={handleNewApplication}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer une candidature
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {sortedApplications.map((application) => (
+                  <ApplicationCard
+                    key={application.id}
+                    application={application}
+                    onEdit={() => handleEdit(application)}
+                    onDelete={() => handleDelete(application.id)}
+                    onGenerateCV={() => setSelectedApplicationForCV(application)}
+                    onGenerateLetter={() => setSelectedApplicationForLetter(application)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Calendrier */}
+        {activeTab === 'calendrier' && (
+          <CalendarView applications={applications} />
+        )}
+
+        {/* Tâches */}
+        {activeTab === 'taches' && (
+          <TasksView 
+            applications={applications}
+            onUpdateApplication={handleUpdateApplication}
+          />
+        )}
+
+        {/* Productivité */}
+        {activeTab === 'productivite' && (
+          <ProductivityView tips={COACHING_LIBRARY} />
+        )}
       </main>
 
       {/* Modals */}
