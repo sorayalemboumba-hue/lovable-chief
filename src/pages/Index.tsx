@@ -16,6 +16,7 @@ import { ProductivityView } from '@/components/ProductivityView';
 import { DataManager } from '@/components/DataManager';
 import { FilterPanel, FilterState } from '@/components/FilterPanel';
 import { DeadlineNotifications } from '@/components/DeadlineNotifications';
+import { SupabaseMigration } from '@/components/SupabaseMigration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, Loader2 } from 'lucide-react';
@@ -141,6 +142,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
+      <SupabaseMigration />
+      
       {/* Header */}
       <header className="border-b-2 bg-card/50 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
