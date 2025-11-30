@@ -1,4 +1,5 @@
 export type ApplicationStatus = "à compléter" | "en cours" | "soumise" | "entretien";
+export type ApplicationType = "standard" | "spontanée" | "recommandée";
 
 export interface Application {
   id: string;
@@ -14,6 +15,11 @@ export interface Application {
   contacts?: Contact[];
   actions?: Action[];
   createdAt: string;
+  type?: ApplicationType;
+  referent?: string;
+  compatibility?: number;
+  missingRequirements?: string[];
+  matchingSkills?: string[];
 }
 
 export interface Contact {

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Application, ApplicationStatus } from '@/types/application';
+import { Application, ApplicationStatus, ApplicationType } from '@/types/application';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface ApplicationFormProps {
   application?: Application;
@@ -15,6 +16,11 @@ interface ApplicationFormProps {
 }
 
 const STATUS_OPTIONS: ApplicationStatus[] = ["à compléter", "en cours", "soumise", "entretien"];
+const TYPE_OPTIONS: { value: ApplicationType; label: string; description: string }[] = [
+  { value: 'standard', label: 'Candidature standard', description: 'Réponse à une offre publique' },
+  { value: 'spontanée', label: 'Candidature spontanée', description: 'Initiative personnelle sans offre' },
+  { value: 'recommandée', label: 'Candidature recommandée', description: 'Via un contact ou réseau' }
+];
 
 export function ApplicationForm({ application, open, onClose, onSave }: ApplicationFormProps) {
   const [formData, setFormData] = useState<Partial<Application>>(
@@ -28,6 +34,8 @@ export function ApplicationForm({ application, open, onClose, onSave }: Applicat
       keywords: '',
       notes: '',
       url: '',
+      type: 'standard',
+      referent: ''
     }
   );
 
@@ -45,6 +53,8 @@ export function ApplicationForm({ application, open, onClose, onSave }: Applicat
       keywords: formData.keywords,
       notes: formData.notes,
       url: formData.url,
+      type: formData.type || 'standard',
+      referent: formData.referent,
       contacts: application?.contacts || [],
       actions: application?.actions || [],
       createdAt: application?.createdAt || new Date().toISOString(),
@@ -105,6 +115,38 @@ export function ApplicationForm({ application, open, onClose, onSave }: Applicat
                 required
               />
             </div>
+          </div>
+
+          <div className="space-y-3 border border-border rounded-lg p-4">
+            <Label>Type de candidature</Label>
+            <RadioGroup
+              value={formData.type || 'standard'}
+              onValueChange={(value) => setFormData({ ...formData, type: value as ApplicationType })}
+            >
+              {TYPE_OPTIONS.map((option) => (
+                <div key={option.value} className="flex items-start space-x-3 space-y-0">
+                  <RadioGroupItem value={option.value} id={option.value} />
+                  <div className="flex-1">
+                    <Label htmlFor={option.value} className="font-medium cursor-pointer">
+                      {option.label}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">{option.description}</p>
+                  </div>
+                </div>
+              ))}
+            </RadioGroup>
+            
+            {formData.type === 'recommandée' && (
+              <div className="space-y-2 mt-3 pt-3 border-t">
+                <Label htmlFor="referent">Nom du contact recommandant</Label>
+                <Input
+                  id="referent"
+                  value={formData.referent || ''}
+                  onChange={(e) => setFormData({ ...formData, referent: e.target.value })}
+                  placeholder="Ex: Jean Dupont, Relations externes"
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

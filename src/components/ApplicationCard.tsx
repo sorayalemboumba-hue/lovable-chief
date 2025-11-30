@@ -2,9 +2,11 @@ import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail } from 'lucide-react';
+import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles } from 'lucide-react';
 import { formatDate, getDaysUntil, isOverdue, isUrgent } from '@/lib/dateUtils';
 import { downloadIcs } from '@/lib/icsExport';
+import { CompatibilityBadge } from './CompatibilityBadge';
+import { ApplicationChecklist } from './ApplicationChecklist';
 
 interface ApplicationCardProps {
   application: Application;
@@ -12,6 +14,7 @@ interface ApplicationCardProps {
   onDelete: () => void;
   onGenerateCV?: () => void;
   onGenerateLetter?: () => void;
+  onUpdate?: (updates: Partial<Application>) => void;
 }
 
 const STATUS_STYLES = {
@@ -21,10 +24,36 @@ const STATUS_STYLES = {
   "entretien": "bg-accent/10 text-accent border-accent/20",
 };
 
-export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, onGenerateLetter }: ApplicationCardProps) {
+export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, onGenerateLetter, onUpdate }: ApplicationCardProps) {
   const daysUntil = getDaysUntil(application.deadline);
   const urgent = isUrgent(application.deadline);
   const overdue = isOverdue(application.deadline);
+
+  const getTypeIcon = () => {
+    if (application.type === 'recommandée') return <Users className="w-4 h-4" />;
+    if (application.type === 'spontanée') return <Sparkles className="w-4 h-4" />;
+    return null;
+  };
+
+  const getTypeBadge = () => {
+    if (application.type === 'recommandée') {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Users className="w-3 h-3" />
+          Recommandée {application.referent && `par ${application.referent}`}
+        </Badge>
+      );
+    }
+    if (application.type === 'spontanée') {
+      return (
+        <Badge variant="outline" className="gap-1">
+          <Sparkles className="w-3 h-3" />
+          Spontanée
+        </Badge>
+      );
+    }
+    return null;
+  };
 
   return (
     <Card className="p-6 hover:shadow-md transition-all duration-300 border-2">
@@ -32,6 +61,7 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <h3 className="text-xl font-semibold">{application.poste}</h3>
+            <CompatibilityBadge application={application} />
             {application.priorite >= 8 && (
               <Badge variant="destructive" className="text-xs">Priorité haute</Badge>
             )}
@@ -48,13 +78,22 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
             </span>
           </div>
 
-          <Badge className={STATUS_STYLES[application.statut]} variant="outline">
-            {application.statut}
-          </Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge className={STATUS_STYLES[application.statut]} variant="outline">
+              {application.statut}
+            </Badge>
+            {getTypeBadge()}
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t">
+      {onUpdate && (
+        <div className="mt-4">
+          <ApplicationChecklist application={application} onUpdate={onUpdate} />
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-4 border-t mt-4">
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="w-4 h-4" />
           <span className={overdue ? "text-destructive font-medium" : urgent ? "text-warning font-medium" : ""}>
