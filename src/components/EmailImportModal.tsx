@@ -113,7 +113,7 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     });
     
     onImport(applicationsToImport);
-    toast.success(`${applicationsToImport.length} candidature(s) importée(s)`);
+    toast.success(`${applicationsToImport.length} offre(s) importée(s)`);
     
     // Reset state
     setEmailContent('');
@@ -128,7 +128,7 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle>📥 Import d'offres d'emploi</DialogTitle>
+          <DialogTitle>📥 Importer des offres d'emploi</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="email" className="w-full">
