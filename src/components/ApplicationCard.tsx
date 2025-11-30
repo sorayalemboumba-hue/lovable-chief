@@ -2,11 +2,13 @@ import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles } from 'lucide-react';
+import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye } from 'lucide-react';
 import { formatDate, getDaysUntil, isOverdue, isUrgent } from '@/lib/dateUtils';
 import { downloadIcs } from '@/lib/icsExport';
+import { supabase } from '@/integrations/supabase/client';
 import { CompatibilityBadge } from './CompatibilityBadge';
 import { ApplicationChecklist } from './ApplicationChecklist';
+import { toast } from 'sonner';
 
 interface ApplicationCardProps {
   application: Application;
@@ -28,6 +30,27 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
   const daysUntil = getDaysUntil(application.deadline);
   const urgent = isUrgent(application.deadline);
   const overdue = isOverdue(application.deadline);
+
+  const handleViewOriginalOffer = async () => {
+    if (!application.originalOfferUrl) {
+      toast.error('Aucune offre originale disponible');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('job-offers')
+        .download(application.originalOfferUrl);
+      
+      if (error) throw error;
+      
+      const url = URL.createObjectURL(data);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('Error viewing offer:', error);
+      toast.error('Erreur lors de l\'ouverture de l\'offre');
+    }
+  };
 
   const getTypeIcon = () => {
     if (application.type === 'recommandée') return <Users className="w-4 h-4" />;
@@ -104,6 +127,18 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {application.originalOfferUrl && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleViewOriginalOffer}
+              className="gap-1"
+              title="Voir l'offre originale"
+            >
+              <Eye className="w-4 h-4" />
+              Offre
+            </Button>
+          )}
           {onGenerateCV && !application.url?.includes('cv-') && (
             <Button
               variant="outline"

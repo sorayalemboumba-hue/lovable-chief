@@ -4,6 +4,7 @@ import { parseJobAlert, ParsedJob } from '@/lib/emailParser';
 import { parsePDFJobOffer } from '@/lib/pdfJobParser';
 import { parseTextJobOffer } from '@/lib/textJobParser';
 import { parsePDFFile } from '@/lib/pdfParser';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,6 +64,24 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     try {
       const job = await parsePDFFile(file);
       if (job) {
+        // Upload PDF to Supabase Storage
+        const user = (await supabase.auth.getUser()).data.user;
+        if (user) {
+          const fileName = `${user.id}/${Date.now()}_${file.name}`;
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('job-offers')
+            .upload(fileName, file);
+          
+          if (!uploadError && uploadData) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('job-offers')
+              .getPublicUrl(fileName);
+            
+            // Store the storage path in the job object
+            (job as any).originalOfferUrl = uploadData.path;
+          }
+        }
+        
         setParsedJobs([job]);
         setSelectedJobs(new Set([0]));
         toast.success('1 offre détectée dans le PDF');
@@ -101,7 +120,7 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     defaultDeadline.setDate(today.getDate() + 14);
     
     const applicationsToImport = Array.from(selectedJobs).map(index => {
-      const job = parsedJobs[index];
+      const job = parsedJobs[index] as any;
       return {
         entreprise: job.entreprise,
         poste: job.poste,
@@ -110,7 +129,12 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
         statut: 'à compléter' as const,
         priorite: 2,
         keywords: job.motsCles,
-        url: ''
+        url: '',
+        originalOfferUrl: job.originalOfferUrl,
+        publicationDate: job.publicationDate,
+        applicationEmail: job.applicationEmail,
+        applicationInstructions: job.applicationInstructions,
+        requiredDocuments: job.requiredDocuments,
       };
     });
     

@@ -20,6 +20,11 @@ export interface Application {
   compatibility?: number;
   missingRequirements?: string[];
   matchingSkills?: string[];
+  originalOfferUrl?: string;
+  publicationDate?: string;
+  applicationEmail?: string;
+  applicationInstructions?: string;
+  requiredDocuments?: string[];
 }
 
 export interface Contact {

@@ -17,6 +17,8 @@ export type Database = {
       applications: {
         Row: {
           actions: Json | null
+          application_email: string | null
+          application_instructions: string | null
           compatibility: number | null
           contacts: Json | null
           created_at: string
@@ -28,9 +30,12 @@ export type Database = {
           matching_skills: Json | null
           missing_requirements: Json | null
           notes: string | null
+          original_offer_url: string | null
           poste: string
           priorite: number
+          publication_date: string | null
           referent: string | null
+          required_documents: string[] | null
           statut: string
           type: string | null
           url: string | null
@@ -38,6 +43,8 @@ export type Database = {
         }
         Insert: {
           actions?: Json | null
+          application_email?: string | null
+          application_instructions?: string | null
           compatibility?: number | null
           contacts?: Json | null
           created_at?: string
@@ -49,9 +56,12 @@ export type Database = {
           matching_skills?: Json | null
           missing_requirements?: Json | null
           notes?: string | null
+          original_offer_url?: string | null
           poste: string
           priorite?: number
+          publication_date?: string | null
           referent?: string | null
+          required_documents?: string[] | null
           statut: string
           type?: string | null
           url?: string | null
@@ -59,6 +69,8 @@ export type Database = {
         }
         Update: {
           actions?: Json | null
+          application_email?: string | null
+          application_instructions?: string | null
           compatibility?: number | null
           contacts?: Json | null
           created_at?: string
@@ -70,9 +82,12 @@ export type Database = {
           matching_skills?: Json | null
           missing_requirements?: Json | null
           notes?: string | null
+          original_offer_url?: string | null
           poste?: string
           priorite?: number
+          publication_date?: string | null
           referent?: string | null
+          required_documents?: string[] | null
           statut?: string
           type?: string | null
           url?: string | null
