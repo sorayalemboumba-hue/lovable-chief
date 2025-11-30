@@ -5,6 +5,12 @@ export interface ParsedJob {
   canal: string;
   motsCles?: string;
   source: string;
+  exclusionFlags?: {
+    isStage: boolean;
+    isOutsideGEVD: boolean;
+    requiresGerman: boolean;
+  };
+  shouldExclude?: boolean;
 }
 
 const isUnsubscribeLine = (line: string): boolean => {

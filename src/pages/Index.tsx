@@ -92,8 +92,8 @@ const Index = () => {
     setIsFormOpen(true);
   };
 
-  const handleImportJobs = async (jobs: Partial<Application>[]) => {
-    await importApplications(jobs);
+  const handleImportJobs = async (jobs: Partial<Application>[]): Promise<string[]> => {
+    return await importApplications(jobs);
   };
 
   const handleImportData = async (importedApps: Application[]) => {

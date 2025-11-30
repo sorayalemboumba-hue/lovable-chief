@@ -19,11 +19,21 @@ export function getPriorityScore(app: Application): PriorityScore {
   // Urgency score (0-40 points)
   const daysUntil = getDaysUntil(app.deadline);
   let urgency = 0;
-  if (daysUntil < 0) urgency = 40; // Overdue gets max priority
-  else if (daysUntil <= 3) urgency = 35;
-  else if (daysUntil <= 7) urgency = 25;
-  else if (daysUntil <= 14) urgency = 15;
-  else urgency = 5;
+  
+  // Handle null/missing deadline with neutral score
+  if (!app.deadline || daysUntil === 999) {
+    urgency = 10; // Neutral score for no deadline
+  } else if (daysUntil < 0) {
+    urgency = 40; // Overdue gets max priority
+  } else if (daysUntil <= 3) {
+    urgency = 35;
+  } else if (daysUntil <= 7) {
+    urgency = 25;
+  } else if (daysUntil <= 14) {
+    urgency = 15;
+  } else {
+    urgency = 5;
+  }
 
   // Quality score (0-40 points)
   const compatibility = app.compatibility || 0;
