@@ -42,7 +42,9 @@ export function CVGeneratorModal({ candidature, open, onClose, onSave }: CVGener
   const handleDownload = () => {
     setGenerating(true);
     try {
-      const pdfDataUrl = generateCV(candidature);
+      // Importer le générateur personnalisé
+      const { generateCustomCV } = require('@/lib/pdfGenerator');
+      const pdfDataUrl = generateCustomCV(cvContent, candidature);
       const filename = `CV_${candidature.entreprise}_${candidature.poste}_${selectedLanguage.toUpperCase()}.pdf`;
       downloadPDF(pdfDataUrl, filename);
       onSave(pdfDataUrl);

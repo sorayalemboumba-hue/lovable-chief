@@ -40,7 +40,9 @@ export function LetterGeneratorModal({ candidature, open, onClose, onSave }: Let
   const handleDownload = () => {
     setGenerating(true);
     try {
-      const pdfDataUrl = generateCoverLetter(candidature);
+      // Importer le générateur personnalisé
+      const { generateCustomCoverLetter } = require('@/lib/pdfGenerator');
+      const pdfDataUrl = generateCustomCoverLetter(letterContent, candidature);
       const filename = `LM_${candidature.entreprise}_${candidature.poste}_${selectedLanguage.toUpperCase()}.pdf`;
       downloadPDF(pdfDataUrl, filename);
       onSave(pdfDataUrl);
