@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DocumentLibrary } from './DocumentLibrary';
+import { ATSScoreCard } from './ATSScoreCard';
 
 interface ApplicationWorkflowProps {
   application: Application;
@@ -249,6 +250,11 @@ export function ApplicationWorkflow({ application, onUpdate }: ApplicationWorkfl
                 ))}
               </div>
             </div>
+          )}
+
+          {/* ATS Score Card - Show before submission */}
+          {application.cv_template_id && application.letter_template_id && (
+            <ATSScoreCard application={application} />
           )}
         </div>
       </Card>
