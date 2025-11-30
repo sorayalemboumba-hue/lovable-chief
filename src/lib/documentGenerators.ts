@@ -44,11 +44,11 @@ export const generateCV = (candidature: Application, format: CVFormat = 'standar
   switch (format) {
     case 'innovation':
       relevantSkills = [
-        ...sorayaProfile.competencesExpertises.innovation,
-        ...sorayaProfile.competencesExpertises.gestionProjet.slice(0, 3)
+        ...sorayaProfile.competencesExpertises.gestionProjet.slice(0, 3),
+        ...sorayaProfile.competencesExpertises.communication.slice(0, 2)
       ];
       relevantAchievements = sorayaProfile.realisationsPhares.filter(r => 
-        ['innovation', 'projet'].includes(r.domaine)
+        ['projet', 'social'].includes(r.domaine)
       );
       apropos = sorayaProfile.citations.innovation;
       break;
@@ -59,9 +59,9 @@ export const generateCV = (candidature: Application, format: CVFormat = 'standar
         ...sorayaProfile.competencesExpertises.communication.slice(0, 3)
       ];
       relevantAchievements = sorayaProfile.realisationsPhares.filter(r => 
-        ['communication', 'management'].includes(r.domaine)
+        ['communication', 'international'].includes(r.domaine)
       );
-      apropos = sorayaProfile.citations.education;
+      apropos = sorayaProfile.citations.gestionProjet;
       break;
       
     case 'events':
@@ -72,13 +72,13 @@ export const generateCV = (candidature: Application, format: CVFormat = 'standar
       relevantAchievements = sorayaProfile.realisationsPhares.filter(r => 
         r.domaine === 'événementiel'
       );
-      apropos = sorayaProfile.citations.events;
+      apropos = sorayaProfile.citations.evenementiel;
       break;
       
     case 'social':
       relevantSkills = [
-        ...sorayaProfile.competencesExpertises.innovation.slice(0, 2),
-        ...sorayaProfile.competencesExpertises.leadership
+        ...sorayaProfile.competencesExpertises.gestionProjet.slice(0, 2),
+        ...sorayaProfile.competencesExpertises.leadership.slice(0, 3)
       ];
       relevantAchievements = sorayaProfile.realisationsPhares.filter(r => 
         r.domaine === 'social'
@@ -89,18 +89,18 @@ export const generateCV = (candidature: Application, format: CVFormat = 'standar
     case 'management':
       relevantSkills = [
         ...sorayaProfile.competencesExpertises.leadership,
-        ...sorayaProfile.competencesExpertises.gestionProjet
+        ...sorayaProfile.competencesExpertises.gestionProjet.slice(0, 2)
       ];
       relevantAchievements = sorayaProfile.realisationsPhares.filter(r => 
-        ['management', 'projet'].includes(r.domaine)
+        ['leadership', 'projet'].includes(r.domaine)
       );
-      apropos = sorayaProfile.citations.management;
+      apropos = sorayaProfile.citations.leadership;
       break;
       
     default: // standard
       relevantSkills = Object.values(sorayaProfile.competencesExpertises).flat().slice(0, 10);
       relevantAchievements = sorayaProfile.realisationsPhares.slice(0, 4);
-      apropos = sorayaProfile.citations.general;
+      apropos = sorayaProfile.citations.gestionProjet;
   }
 
   return {
@@ -148,12 +148,12 @@ ${openingParagraph}
 
 Mon expérience en ${keywords} m'a permis de développer une expertise solide dans des environnements internationaux exigeants. J'ai notamment :
 
-• Coordonné 175 bénévoles lors de la Fête des Vignerons avec 500+ VIP
-• Augmenté de 40% la visibilité de St George's International School
-• Digitalisé les processus d'admissions, réduisant de 60% les délais de traitement
-• Géré simultanément 12 projets dans 8 pays avec un budget de 500k CHF
+• Coordonné 200 bénévoles lors de la Fête des Vignerons (1 million de visiteurs)
+• Créé le service d'urgence DIPER COVID à la Croix-Rouge (1400 bénéficiaires en 4 semaines)
+• Géré le 90ème anniversaire de St Georges International School (10+ activités simultanées)
+• Dirigé l'École Moderne pendant la crise COVID (transition digitale complète)
 
-Ma capacité à fédérer des équipes multiculturelles (15 collaborateurs, 7 nationalités) et mon approche centrée sur l'innovation sociale me permettent de transformer les défis en opportunités concrètes.
+Ma capacité à fédérer des équipes multiculturelles (15 collaborateurs, 7 nationalités) et mon approche centrée sur l'innovation et l'impact social me permettent de transformer les défis en opportunités concrètes.
 
 ${isSpontaneous 
   ? `Je serais ravie d'échanger avec vous sur les opportunités de collaboration au sein de ${candidature.entreprise} et de contribuer à vos projets.`
@@ -167,19 +167,40 @@ ${sorayaProfile.nom}
 ${sorayaProfile.telephone} | ${sorayaProfile.email}`;
 
   const shortMessage = isRecommended
-    ? `Objet: Candidature ${candidature.poste} (recommandée par ${candidature.referent})\n\nBonjour,\n\nSuite à ma discussion avec ${candidature.referent}, je vous transmets ma candidature pour le poste de ${candidature.poste}.\n\nVous trouverez ci-joint mon CV et ma lettre de motivation.\n\nCordialement,\n${sorayaProfile.nom}`
-    : `Objet: Candidature ${candidature.poste}\n\nBonjour,\n\nJe vous transmets ma candidature pour le poste de ${candidature.poste} au sein de ${candidature.entreprise}.\n\nMon parcours de 15+ années en gestion de projets internationaux et coordination d'équipes multiculturelles correspond aux exigences de ce poste.\n\nVous trouverez ci-joint mon CV et ma lettre de motivation détaillée.\n\nBien cordialement,\n${sorayaProfile.nom}\n${sorayaProfile.telephone}`;
+    ? `Objet: Candidature ${candidature.poste} (recommandée par ${candidature.referent})
+
+Bonjour,
+
+Suite à ma discussion avec ${candidature.referent}, je vous transmets ma candidature pour le poste de ${candidature.poste}.
+
+Vous trouverez ci-joint mon CV et ma lettre de motivation.
+
+Cordialement,
+${sorayaProfile.nom}`
+    : `Objet: Candidature ${candidature.poste}
+
+Bonjour,
+
+Je vous transmets ma candidature pour le poste de ${candidature.poste} au sein de ${candidature.entreprise}.
+
+Mon parcours de 15+ années en gestion de projets internationaux et coordination d'équipes multiculturelles correspond aux exigences de ce poste.
+
+Vous trouverez ci-joint mon CV et ma lettre de motivation détaillée.
+
+Bien cordialement,
+${sorayaProfile.nom}
+${sorayaProfile.telephone}`;
 
   return {
     lettre_full: letterContent,
     message_channel: shortMessage,
     highlights_numeriques: [
-      '175 bénévoles coordonnés',
-      '40% augmentation visibilité',
-      '60% réduction délais',
-      '12 projets, 8 pays',
-      '15+ années d\'expérience'
+      '200 bénévoles coordonnés',
+      '1 million de visiteurs gérés',
+      '1400 bénéficiaires COVID en 4 semaines',
+      '15+ années d\'expérience internationale',
+      '10+ activités simultanées organisées'
     ],
-    slogan: sorayaProfile.citations.general
+    slogan: sorayaProfile.citations.gestionProjet
   };
 };

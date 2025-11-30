@@ -87,7 +87,7 @@ export function CVGeneratorModal({ candidature, open, onClose, onSave }: CVGener
           <div className="space-y-6">
             <div>
               <h3 className="font-semibold mb-4">📄 Aperçu CV généré :</h3>
-              <div className="bg-muted/50 p-6 rounded-lg max-h-96 overflow-y-auto border border-border">
+              <div className="bg-muted/50 p-6 rounded-lg max-h-[60vh] overflow-y-auto border border-border">
                 <div className="space-y-4">
                   <div className="border-b border-border pb-2">
                     <h4 className="font-bold text-lg">{generatedCV.enTete.nom}</h4>
