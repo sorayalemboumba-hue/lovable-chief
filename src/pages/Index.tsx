@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Application } from '@/types/application';
-import { useApplications } from '@/hooks/useApplications';
+import { useLocalApplications } from '@/hooks/useLocalApplications';
 import { StatsCards } from '@/components/StatsCards';
 import { ApplicationCard } from '@/components/ApplicationCard';
 import { ApplicationForm } from '@/components/ApplicationForm';
@@ -14,19 +14,18 @@ import { CalendarView } from '@/components/CalendarView';
 import { TasksView } from '@/components/TasksView';
 import { ProductivityView } from '@/components/ProductivityView';
 import { DataManager } from '@/components/DataManager';
-import { LocalStorageMigration } from '@/components/LocalStorageMigration';
 import { FilterPanel, FilterState } from '@/components/FilterPanel';
 import { DeadlineNotifications } from '@/components/DeadlineNotifications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, LogOut, Loader2 } from 'lucide-react';
+import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { sortByPriority, getPriorityScore } from '@/lib/priorityEngine';
 import { COACHING_LIBRARY } from '@/data/coaching';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { applications, loading, user, addApplication, updateApplication, deleteApplication, importApplications, refetch } = useApplications();
+  const { applications, loading, addApplication, updateApplication, deleteApplication, importApplications, refetch } = useLocalApplications();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApplication, setEditingApplication] = useState<Application | undefined>();
@@ -36,13 +35,6 @@ const Index = () => {
   const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'offres' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
   const [filters, setFilters] = useState<FilterState>({});
-
-  // Redirect to auth if not logged in
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
 
   // Distinction entre offres (à compléter/en cours) et candidatures (soumise/entretien)
   const offres = applications.filter(app => 
@@ -73,11 +65,7 @@ const Index = () => {
     app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const sortedApplications = [...filteredApplications].sort((a, b) => {
-    const deadlineCompare = new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-    if (deadlineCompare !== 0) return deadlineCompare;
-    return b.priorite - a.priorite;
-  });
+  const sortedApplications = sortByPriority(filteredApplications);
 
   const handleSave = async (application: Application) => {
     if (editingApplication) {
@@ -131,12 +119,6 @@ const Index = () => {
     await updateApplication(id, updates);
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast.success('Déconnexion réussie');
-    navigate('/auth');
-  };
-
   const tabs = [
     { id: 'dashboard' as const, label: 'Tableau de bord', icon: BarChart3 },
     { id: 'offres' as const, label: 'Offres disponibles', icon: Target, badge: filteredOffres.length },
@@ -155,10 +137,6 @@ const Index = () => {
         </div>
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   return (
@@ -198,15 +176,6 @@ const Index = () => {
               >
                 <CalendarIcon className="w-5 h-5" />
                 <span className="hidden sm:inline">Calendrier</span>
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="default"
-                onClick={handleSignOut}
-                className="gap-2"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="hidden sm:inline">Déconnexion</span>
               </Button>
               <Button onClick={handleNewApplication} size="default" className="gap-2 flex-1 sm:flex-none">
                 <Plus className="w-5 h-5" />
@@ -370,9 +339,11 @@ const Index = () => {
                     app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
                   )
+                  .slice()
                   .sort((a, b) => {
-                    const deadlineCompare = new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-                    if (deadlineCompare !== 0) return deadlineCompare;
+                    const scoreA = getPriorityScore(a);
+                    const scoreB = getPriorityScore(b);
+                    if (scoreB.total !== scoreA.total) return scoreB.total - scoreA.total;
                     return b.priorite - a.priorite;
                   })
                   .map((application) => (
@@ -440,9 +411,11 @@ const Index = () => {
                     app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
                   )
+                  .slice()
                   .sort((a, b) => {
-                    const deadlineCompare = new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-                    if (deadlineCompare !== 0) return deadlineCompare;
+                    const scoreA = getPriorityScore(a);
+                    const scoreB = getPriorityScore(b);
+                    if (scoreB.total !== scoreA.total) return scoreB.total - scoreA.total;
                     return b.priorite - a.priorite;
                   })
                   .map((application) => (
@@ -521,11 +494,6 @@ const Index = () => {
         onImport={handleImportData}
         open={isDataManagerOpen}
         onClose={() => setIsDataManagerOpen(false)}
-      />
-
-      <LocalStorageMigration
-        onMigrate={importApplications}
-        user={user}
       />
     </div>
   );

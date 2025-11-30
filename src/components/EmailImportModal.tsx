@@ -114,7 +114,7 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     }
   };
 
-  const handleImportSelectedJobs = () => {
+  const handleImportSelectedJobs = async () => {
     const today = new Date();
     const defaultDeadline = new Date(today);
     defaultDeadline.setDate(today.getDate() + 14);
@@ -138,8 +138,52 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
       };
     });
     
+    // Import first
     onImport(applicationsToImport);
-    toast.success(`${applicationsToImport.length} offre(s) importée(s)`);
+    
+    // Then trigger batch AI analysis
+    toast.loading('Analyse IA en cours...', { id: 'batch-analysis' });
+    
+    try {
+      const userProfile = `Profil professionnel avec expérience en gestion et coordination.`;
+      
+      // Analyze all imported jobs in parallel
+      const analysisPromises = applicationsToImport.map(async (app) => {
+        try {
+          const jobDescription = `${app.poste} chez ${app.entreprise}, ${app.lieu}. ${app.keywords || ''}`;
+          
+          const { data, error } = await supabase.functions.invoke('analyze-job-offer', {
+            body: { jobDescription, userProfile }
+          });
+          
+          if (error) throw error;
+          
+          return {
+            entreprise: app.entreprise,
+            poste: app.poste,
+            updates: {
+              compatibility: data.compatibility,
+              matchingSkills: data.matching_skills,
+              missingRequirements: data.missing_requirements,
+              keywords: data.keywords,
+              recommended_channel: data.recommended_channel,
+              requiredDocuments: data.required_documents
+            }
+          };
+        } catch (err) {
+          console.error(`Analysis failed for ${app.poste}:`, err);
+          return null;
+        }
+      });
+      
+      const results = await Promise.all(analysisPromises);
+      const successful = results.filter(r => r !== null).length;
+      
+      toast.success(`${applicationsToImport.length} offre(s) importée(s), ${successful} analysée(s) par IA`, { id: 'batch-analysis' });
+    } catch (error) {
+      console.error('Batch analysis error:', error);
+      toast.error('Offres importées mais analyse IA partielle', { id: 'batch-analysis' });
+    }
     
     // Reset state
     setEmailContent('');
