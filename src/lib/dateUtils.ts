@@ -5,8 +5,11 @@ export const formatDate = (dateStr: string): string => {
 };
 
 export const getDaysUntil = (dateStr: string): number => {
+  if (!dateStr) return 999;
   const date = new Date(dateStr);
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
   const diffTime = date.getTime() - today.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
