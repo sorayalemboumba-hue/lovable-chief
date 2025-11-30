@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Application } from '@/types/application';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useApplications } from '@/hooks/useApplications';
 import { COACHING_LIBRARY } from '@/data/coaching';
 import { StatsCards } from '@/components/StatsCards';
 import { ApplicationCard } from '@/components/ApplicationCard';
@@ -14,13 +15,16 @@ import { CalendarView } from '@/components/CalendarView';
 import { TasksView } from '@/components/TasksView';
 import { ProductivityView } from '@/components/ProductivityView';
 import { DataManager } from '@/components/DataManager';
+import { LocalStorageMigration } from '@/components/LocalStorageMigration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database } from 'lucide-react';
+import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, LogOut, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
-  const [applications, setApplications] = useLocalStorage<Application[]>('applications', []);
+  const navigate = useNavigate();
+  const { applications, loading, user, addApplication, updateApplication, deleteApplication, importApplications, refetch } = useApplications();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApplication, setEditingApplication] = useState<Application | undefined>();
@@ -29,6 +33,13 @@ const Index = () => {
   const [selectedApplicationForCV, setSelectedApplicationForCV] = useState<Application | null>(null);
   const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'offres' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
+
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
 
   // Distinction entre offres (à compléter/en cours) et candidatures (soumise/entretien)
   const offres = applications.filter(app => 
@@ -50,18 +61,14 @@ const Index = () => {
     return b.priorite - a.priorite;
   });
 
-  const handleSave = (application: Application) => {
+  const handleSave = async (application: Application) => {
     if (editingApplication) {
-      setApplications(applications.map(app => 
-        app.id === application.id ? application : app
-      ));
-      const isOffer = application.statut === 'à compléter' || application.statut === 'en cours';
-      toast.success(isOffer ? 'Offre mise à jour' : 'Candidature mise à jour');
+      await updateApplication(application.id, application);
     } else {
-      setApplications([...applications, application]);
-      toast.success('Offre créée');
+      await addApplication(application);
     }
     setEditingApplication(undefined);
+    setIsFormOpen(false);
   };
 
   const handleEdit = (application: Application) => {
@@ -69,11 +76,8 @@ const Index = () => {
     setIsFormOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    const app = applications.find(a => a.id === id);
-    const isOffer = app && (app.statut === 'à compléter' || app.statut === 'en cours');
-    setApplications(applications.filter(app => app.id !== id));
-    toast.success(isOffer ? 'Offre supprimée' : 'Candidature supprimée');
+  const handleDelete = async (id: string) => {
+    await deleteApplication(id);
   };
 
   const handleNewApplication = () => {
@@ -81,62 +85,38 @@ const Index = () => {
     setIsFormOpen(true);
   };
 
-  const handleImportJobs = (jobs: Partial<Application>[]) => {
-    // Detect duplicates based on entreprise + poste
-    const existingKeys = new Set(
-      applications.map(app => `${app.entreprise.toLowerCase()}-${app.poste.toLowerCase()}`)
-    );
-    
-    const uniqueJobs = jobs.filter(job => 
-      !existingKeys.has(`${job.entreprise?.toLowerCase()}-${job.poste?.toLowerCase()}`)
-    );
-
-    const newApplications = uniqueJobs.map(job => ({
-      ...job,
-      id: Date.now().toString() + Math.random(),
-      createdAt: new Date().toISOString(),
-    } as Application));
-    
-    const duplicates = jobs.length - uniqueJobs.length;
-    setApplications([...applications, ...newApplications]);
-    
-    if (duplicates > 0) {
-      toast.info(`${duplicates} doublon(s) ignoré(s)`);
-    }
+  const handleImportJobs = async (jobs: Partial<Application>[]) => {
+    await importApplications(jobs);
   };
 
-  const handleImportData = (importedApps: Application[]) => {
-    setApplications([...applications, ...importedApps]);
+  const handleImportData = async (importedApps: Application[]) => {
+    await importApplications(importedApps);
   };
 
-  const handleSaveCV = (cvUrl: string) => {
+  const handleSaveCV = async (cvUrl: string) => {
     if (selectedApplicationForCV) {
-      setApplications(applications.map(app =>
-        app.id === selectedApplicationForCV.id
-          ? { ...app, url: cvUrl }
-          : app
-      ));
+      await updateApplication(selectedApplicationForCV.id, { url: cvUrl });
       toast.success('CV sauvegardé');
     }
     setSelectedApplicationForCV(null);
   };
 
-  const handleSaveLetter = (lettreUrl: string) => {
+  const handleSaveLetter = async (lettreUrl: string) => {
     if (selectedApplicationForLetter) {
-      setApplications(applications.map(app =>
-        app.id === selectedApplicationForLetter.id
-          ? { ...app, url: lettreUrl }
-          : app
-      ));
+      await updateApplication(selectedApplicationForLetter.id, { url: lettreUrl });
       toast.success('Lettre sauvegardée');
     }
     setSelectedApplicationForLetter(null);
   };
 
-  const handleUpdateApplication = (id: string, updates: Partial<Application>) => {
-    setApplications(applications.map(app =>
-      app.id === id ? { ...app, ...updates } : app
-    ));
+  const handleUpdateApplication = async (id: string, updates: Partial<Application>) => {
+    await updateApplication(id, updates);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast.success('Déconnexion réussie');
+    navigate('/auth');
   };
 
   const tabs = [
@@ -147,6 +127,21 @@ const Index = () => {
     { id: 'taches' as const, label: 'Tâches', icon: CheckCircle },
     { id: 'productivite' as const, label: 'Productivité', icon: Zap },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
@@ -184,6 +179,15 @@ const Index = () => {
               >
                 <CalendarIcon className="w-5 h-5" />
                 Calendrier
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="lg" 
+                onClick={handleSignOut}
+                className="gap-2"
+              >
+                <LogOut className="w-5 h-5" />
+                Déconnexion
               </Button>
               <Button onClick={handleNewApplication} size="lg" className="gap-2">
                 <Plus className="w-5 h-5" />
@@ -484,6 +488,11 @@ const Index = () => {
         onImport={handleImportData}
         open={isDataManagerOpen}
         onClose={() => setIsDataManagerOpen(false)}
+      />
+
+      <LocalStorageMigration
+        onMigrate={importApplications}
+        user={user}
       />
     </div>
   );
