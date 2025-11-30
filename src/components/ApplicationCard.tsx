@@ -2,13 +2,15 @@ import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList, AlertTriangle, CheckCircle2, Target } from 'lucide-react';
+import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList, AlertTriangle, CheckCircle2, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDate, getDaysUntil, isOverdue, isUrgent } from '@/lib/dateUtils';
 import { downloadIcs } from '@/lib/icsExport';
 import { supabase } from '@/integrations/supabase/client';
 import { CompatibilityBadge } from './CompatibilityBadge';
 import { ApplicationChecklist } from './ApplicationChecklist';
+import { ApplicationWorkflow } from './ApplicationWorkflow';
 import { toast } from 'sonner';
+import { useState } from 'react';
 
 interface ApplicationCardProps {
   application: Application;
@@ -84,6 +86,7 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
   };
 
   const contextualCoaching = getContextualCoaching();
+  const [showWorkflow, setShowWorkflow] = useState(false);
 
   const handleViewOriginalOffer = async () => {
     if (!application.originalOfferUrl) {
@@ -194,6 +197,24 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
             </div>
             <p className="text-sm font-medium leading-relaxed flex-1">{contextualCoaching.message}</p>
           </div>
+        </div>
+      )}
+
+      {/* Workflow Toggle & Display */}
+      {onUpdate && (
+        <div className="mt-5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowWorkflow(!showWorkflow)}
+            className="w-full gap-2 mb-3"
+          >
+            {showWorkflow ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {showWorkflow ? 'Masquer' : 'Afficher'} la marche à suivre
+          </Button>
+          {showWorkflow && (
+            <ApplicationWorkflow application={application} onUpdate={onUpdate} />
+          )}
         </div>
       )}
 

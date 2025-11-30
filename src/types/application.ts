@@ -25,6 +25,11 @@ export interface Application {
   applicationEmail?: string;
   applicationInstructions?: string;
   requiredDocuments?: string[];
+  cv_template_id?: string;
+  letter_template_id?: string;
+  is_complete?: boolean;
+  recommended_channel?: string;
+  ats_compliant?: boolean;
 }
 
 export interface Contact {
