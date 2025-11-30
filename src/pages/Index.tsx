@@ -16,6 +16,8 @@ import { TasksView } from '@/components/TasksView';
 import { ProductivityView } from '@/components/ProductivityView';
 import { DataManager } from '@/components/DataManager';
 import { LocalStorageMigration } from '@/components/LocalStorageMigration';
+import { FilterPanel, FilterState } from '@/components/FilterPanel';
+import { DeadlineNotifications } from '@/components/DeadlineNotifications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, LogOut, Loader2 } from 'lucide-react';
@@ -33,6 +35,7 @@ const Index = () => {
   const [selectedApplicationForCV, setSelectedApplicationForCV] = useState<Application | null>(null);
   const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'offres' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
+  const [filters, setFilters] = useState<FilterState>({});
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -48,6 +51,21 @@ const Index = () => {
   const candidatures = applications.filter(app => 
     app.statut === 'soumise' || app.statut === 'entretien'
   );
+
+  // Apply filters
+  const applyFilters = (apps: Application[]) => {
+    return apps.filter(app => {
+      if (filters.statut && app.statut !== filters.statut) return false;
+      if (filters.prioriteMin !== undefined && app.priorite < filters.prioriteMin) return false;
+      if (filters.prioriteMax !== undefined && app.priorite > filters.prioriteMax) return false;
+      if (filters.dateDebut && app.deadline < filters.dateDebut) return false;
+      if (filters.dateFin && app.deadline > filters.dateFin) return false;
+      return true;
+    });
+  };
+
+  const filteredOffres = applyFilters(offres);
+  const filteredCandidatures = applyFilters(candidatures);
 
   const filteredApplications = applications.filter(app => 
     app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -121,8 +139,8 @@ const Index = () => {
 
   const tabs = [
     { id: 'dashboard' as const, label: 'Tableau de bord', icon: BarChart3 },
-    { id: 'offres' as const, label: 'Offres disponibles', icon: Target, badge: offres.length },
-    { id: 'candidatures' as const, label: 'Mes candidatures', icon: Briefcase, badge: candidatures.length },
+    { id: 'offres' as const, label: 'Offres disponibles', icon: Target, badge: filteredOffres.length },
+    { id: 'candidatures' as const, label: 'Mes candidatures', icon: Briefcase, badge: filteredCandidatures.length },
     { id: 'calendrier' as const, label: 'Calendrier', icon: CalendarIcon },
     { id: 'taches' as const, label: 'Tâches', icon: CheckCircle },
     { id: 'productivite' as const, label: 'Productivité', icon: Zap },
@@ -162,6 +180,7 @@ const Index = () => {
             </div>
             
             <div className="flex items-center gap-3">
+              <DeadlineNotifications applications={applications} />
               <Button 
                 variant="ghost" 
                 size="lg" 
@@ -304,19 +323,26 @@ const Index = () => {
               </Button>
             </div>
 
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher une offre..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+            {/* Search and Filters */}
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher une offre..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <FilterPanel
+                filters={filters}
+                onFilterChange={setFilters}
+                onReset={() => setFilters({})}
               />
             </div>
 
             {/* Offres list */}
-            {offres.filter(app => 
+            {filteredOffres.filter(app => 
               app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
               app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
               app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
@@ -338,7 +364,7 @@ const Index = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {offres
+                {filteredOffres
                   .filter(app => 
                     app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -373,19 +399,26 @@ const Index = () => {
               <p className="text-muted-foreground">Dossiers envoyés et suivis d'entretiens</p>
             </div>
 
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher une candidature..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+            {/* Search and Filters */}
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher une candidature..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <FilterPanel
+                filters={filters}
+                onFilterChange={setFilters}
+                onReset={() => setFilters({})}
               />
             </div>
 
             {/* Candidatures list */}
-            {candidatures.filter(app => 
+            {filteredCandidatures.filter(app => 
               app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
               app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
               app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
@@ -401,7 +434,7 @@ const Index = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {candidatures
+                {filteredCandidatures
                   .filter(app => 
                     app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,16 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
+
+  // Check if already logged in
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/');
+      }
+    });
+  }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,8 +51,7 @@ export default function Auth() {
       if (error) throw error;
 
       toast.success('Inscription réussie ! Vous pouvez maintenant vous connecter.');
-      setEmail('');
-      setPassword('');
+      setActiveTab('signin'); // Switch to signin tab
     } catch (error: any) {
       console.error('Signup error:', error);
       if (error.message.includes('already registered')) {
@@ -98,7 +107,7 @@ export default function Auth() {
           </h1>
         </div>
 
-        <Tabs defaultValue="signin" className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="signin">Connexion</TabsTrigger>
             <TabsTrigger value="signup">Inscription</TabsTrigger>
