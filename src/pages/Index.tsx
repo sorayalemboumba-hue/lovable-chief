@@ -227,6 +227,7 @@ const Index = () => {
                     onDelete={() => handleDelete(application.id)}
                     onGenerateCV={() => setSelectedApplicationForCV(application)}
                     onGenerateLetter={() => setSelectedApplicationForLetter(application)}
+                    onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
                   />
                 ))}
               </div>
@@ -282,6 +283,7 @@ const Index = () => {
                     onDelete={() => handleDelete(application.id)}
                     onGenerateCV={() => setSelectedApplicationForCV(application)}
                     onGenerateLetter={() => setSelectedApplicationForLetter(application)}
+                    onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
                   />
                 ))}
               </div>
