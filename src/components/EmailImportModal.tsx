@@ -5,19 +5,21 @@ import { parsePDFJobOffer } from '@/lib/pdfJobParser';
 import { parseTextJobOffer } from '@/lib/textJobParser';
 import { parsePDFFile } from '@/lib/pdfParser';
 import { supabase } from '@/integrations/supabase/client';
+import { evaluateExclusionRules, shouldExcludeOffer, getExclusionReason } from '@/lib/exclusionRules';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Mail, Link as LinkIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { FileText, Mail, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface EmailImportModalProps {
   open: boolean;
   onClose: () => void;
-  onImport: (jobs: Partial<Application>[]) => void;
+  onImport: (jobs: Partial<Application>[]) => Promise<string[]>;
 }
 
 export function EmailImportModal({ open, onClose, onImport }: EmailImportModalProps) {
@@ -29,22 +31,42 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
 
   const handleParseEmail = () => {
     const jobs = parseJobAlert(emailContent);
-    setParsedJobs(jobs);
+    
+    // Appliquer règles d'exclusion
+    const jobsWithExclusion = jobs.map(job => {
+      const flags = evaluateExclusionRules(job.poste, job.lieu, job.motsCles);
+      return { ...job, exclusionFlags: flags, shouldExclude: shouldExcludeOffer(flags) };
+    });
+    
+    const validJobs = jobsWithExclusion.filter(j => !j.shouldExclude);
+    const excludedCount = jobs.length - validJobs.length;
+    
+    setParsedJobs(validJobs);
     setSelectedJobs(new Set());
     
-    if (jobs.length === 0) {
-      toast.error('Aucune offre détectée dans cet email');
+    if (validJobs.length === 0) {
+      toast.error(`Aucune offre valide (${excludedCount} exclue(s): stages, hors GE-VD, allemand)`);
     } else {
-      toast.success(`${jobs.length} offre(s) détectée(s)`);
+      toast.success(
+        `${validJobs.length} offre(s) détectée(s)${excludedCount > 0 ? ` (${excludedCount} filtrée(s))` : ''}`
+      );
     }
   };
 
   const handleParseText = () => {
     const job = parseTextJobOffer(textContent);
     if (job) {
-      setParsedJobs([job]);
-      setSelectedJobs(new Set([0]));
-      toast.success('1 offre détectée');
+      const flags = evaluateExclusionRules(job.poste, job.lieu, job.motsCles);
+      const shouldExclude = shouldExcludeOffer(flags);
+      
+      if (shouldExclude) {
+        toast.error(`Offre exclue: ${getExclusionReason(flags)}`);
+        setParsedJobs([]);
+      } else {
+        setParsedJobs([{ ...job, exclusionFlags: flags, shouldExclude: false }]);
+        setSelectedJobs(new Set([0]));
+        toast.success('1 offre détectée');
+      }
     } else {
       setParsedJobs([]);
       toast.error('Impossible d\'analyser le texte');
@@ -64,25 +86,31 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     try {
       const job = await parsePDFFile(file);
       if (job) {
-        // Upload PDF to Supabase Storage
-        const user = (await supabase.auth.getUser()).data.user;
-        if (user) {
-          const fileName = `${user.id}/${Date.now()}_${file.name}`;
+        const flags = evaluateExclusionRules(job.poste, job.lieu, job.motsCles);
+        const shouldExclude = shouldExcludeOffer(flags);
+        
+        if (shouldExclude) {
+          toast.error(`Offre exclue: ${getExclusionReason(flags)}`);
+          setParsedJobs([]);
+          setPdfFile(null);
+          return;
+        }
+        
+        // Upload PDF to Supabase Storage (optional, can fail silently)
+        try {
+          const fileName = `${Date.now()}_${file.name}`;
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from('job-offers')
             .upload(fileName, file);
           
           if (!uploadError && uploadData) {
-            const { data: { publicUrl } } = supabase.storage
-              .from('job-offers')
-              .getPublicUrl(fileName);
-            
-            // Store the storage path in the job object
             (job as any).originalOfferUrl = uploadData.path;
           }
+        } catch (uploadErr) {
+          console.log('Upload skipped (no auth):', uploadErr);
         }
         
-        setParsedJobs([job]);
+        setParsedJobs([{ ...job, exclusionFlags: flags, shouldExclude: false }]);
         setSelectedJobs(new Set([0]));
         toast.success('1 offre détectée dans le PDF');
       } else {
@@ -125,7 +153,7 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
         entreprise: job.entreprise,
         poste: job.poste,
         lieu: job.lieu,
-        deadline: defaultDeadline.toISOString().split('T')[0],
+        deadline: job.deadline || defaultDeadline.toISOString().split('T')[0],
         statut: 'à compléter' as const,
         priorite: 2,
         keywords: job.motsCles,
@@ -138,17 +166,22 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
       };
     });
     
-    // Import first
-    onImport(applicationsToImport);
+    // Import first and get IDs
+    const importedIds = await onImport(applicationsToImport);
     
-    // Then trigger batch AI analysis
+    if (!importedIds || importedIds.length === 0) {
+      toast.error('Erreur lors de l\'import');
+      return;
+    }
+    
+    // Then trigger batch AI analysis with persistence
     toast.loading('Analyse IA en cours...', { id: 'batch-analysis' });
     
     try {
       const userProfile = `Profil professionnel avec expérience en gestion et coordination.`;
       
       // Analyze all imported jobs in parallel
-      const analysisPromises = applicationsToImport.map(async (app) => {
+      const analysisPromises = applicationsToImport.map(async (app, index) => {
         try {
           const jobDescription = `${app.poste} chez ${app.entreprise}, ${app.lieu}. ${app.keywords || ''}`;
           
@@ -159,8 +192,7 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
           if (error) throw error;
           
           return {
-            entreprise: app.entreprise,
-            poste: app.poste,
+            id: importedIds[index],
             updates: {
               compatibility: data.compatibility,
               matchingSkills: data.matching_skills,
@@ -179,7 +211,27 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
       const results = await Promise.all(analysisPromises);
       const successful = results.filter(r => r !== null).length;
       
-      toast.success(`${applicationsToImport.length} offre(s) importée(s), ${successful} analysée(s) par IA`, { id: 'batch-analysis' });
+      // Persist analysis results with small delay to avoid race condition
+      results.forEach((result, i) => {
+        if (result && result.id) {
+          setTimeout(() => {
+            // Get current apps from localStorage
+            const stored = localStorage.getItem('sosoflow_applications');
+            if (stored) {
+              const apps = JSON.parse(stored);
+              const updated = apps.map((app: any) => 
+                app.id === result.id ? { ...app, ...result.updates } : app
+              );
+              localStorage.setItem('sosoflow_applications', JSON.stringify(updated));
+            }
+          }, 100 * i);
+        }
+      });
+      
+      toast.success(`${applicationsToImport.length} offre(s) importée(s), ${successful} analysée(s) et sauvegardée(s)`, { id: 'batch-analysis' });
+      
+      // Force refresh to show updated data
+      setTimeout(() => window.location.reload(), 500);
     } catch (error) {
       console.error('Batch analysis error:', error);
       toast.error('Offres importées mais analyse IA partielle', { id: 'batch-analysis' });

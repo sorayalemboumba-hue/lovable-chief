@@ -21,7 +21,7 @@ export function useLocalApplications() {
     }
   }, [applications, loading]);
 
-  const addApplication = async (application: Omit<Application, 'id' | 'createdAt'>) => {
+  const addApplication = async (application: Omit<Application, 'id' | 'createdAt'>): Promise<string> => {
     const newApp: Application = {
       ...application,
       id: crypto.randomUUID(),
@@ -32,6 +32,7 @@ export function useLocalApplications() {
 
     setApplications(prev => [...prev, newApp]);
     toast.success('Offre créée');
+    return newApp.id;
   };
 
   const updateApplication = async (id: string, updates: Partial<Application>) => {
@@ -52,7 +53,7 @@ export function useLocalApplications() {
     toast.success(isOffer ? 'Offre supprimée' : 'Candidature supprimée');
   };
 
-  const importApplications = async (apps: Partial<Application>[]) => {
+  const importApplications = async (apps: Partial<Application>[]): Promise<string[]> => {
     const existingKeys = new Set(
       applications.map(app => `${app.entreprise.toLowerCase()}-${app.poste.toLowerCase()}`)
     );
@@ -94,13 +95,15 @@ export function useLocalApplications() {
 
     if (newApps.length === 0) {
       toast.warning('Aucune nouvelle donnée à importer (doublons détectés)');
-      return;
+      return [];
     }
 
     setApplications(prev => [...prev, ...newApps]);
     
     const duplicates = apps.length - uniqueApps.length;
     toast.success(`${newApps.length} élément(s) importé(s)${duplicates > 0 ? ` (${duplicates} doublon(s) ignoré(s))` : ''}`);
+    
+    return newApps.map(app => app.id);
   };
 
   const refetch = async () => {
