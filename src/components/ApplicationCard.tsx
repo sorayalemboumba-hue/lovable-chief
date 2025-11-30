@@ -2,7 +2,7 @@ import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList } from 'lucide-react';
+import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList, AlertTriangle, CheckCircle2, Target } from 'lucide-react';
 import { formatDate, getDaysUntil, isOverdue, isUrgent } from '@/lib/dateUtils';
 import { downloadIcs } from '@/lib/icsExport';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +30,60 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
   const daysUntil = getDaysUntil(application.deadline);
   const urgent = isUrgent(application.deadline);
   const overdue = isOverdue(application.deadline);
+
+  // Coaching contextuel basé sur des règles
+  const getContextualCoaching = (): { message: string; icon: any; color: string } | null => {
+    const compatibility = application.compatibility || 0;
+    
+    // Règle 1: Documents manquants (priorité haute)
+    if (application.requiredDocuments && application.requiredDocuments.length > 0 && application.statut === 'à compléter') {
+      return {
+        message: `📋 Documents requis : ${application.requiredDocuments.join(', ')}. Préparez-les avant la deadline.`,
+        icon: ClipboardList,
+        color: 'warning'
+      };
+    }
+    
+    // Règle 2: Deadline ≤ 3 jours
+    if (daysUntil <= 3 && daysUntil >= 0 && application.statut !== 'soumise' && application.statut !== 'entretien') {
+      return {
+        message: `⏰ Deadline dans ${daysUntil}j ! Priorisez cette candidature et finalisez vos documents.`,
+        icon: AlertTriangle,
+        color: 'destructive'
+      };
+    }
+    
+    // Règle 3: Statut "à compléter"
+    if (application.statut === 'à compléter') {
+      return {
+        message: '✏️ Candidature à compléter : générez votre CV et lettre personnalisés, puis passez en "en cours".',
+        icon: Target,
+        color: 'warning'
+      };
+    }
+    
+    // Règle 4: Statut "soumise"
+    if (application.statut === 'soumise' && daysUntil > -3) {
+      return {
+        message: '✅ Candidature soumise ! Préparez une relance dans 48-72h avec un message de valeur ajoutée.',
+        icon: CheckCircle2,
+        color: 'success'
+      };
+    }
+    
+    // Règle 5: Compatibilité < 70%
+    if (compatibility > 0 && compatibility < 70) {
+      return {
+        message: `💡 Compatibilité ${compatibility}% : mettez en avant vos compétences transférables et votre motivation.`,
+        icon: Sparkles,
+        color: 'accent'
+      };
+    }
+    
+    return null;
+  };
+
+  const contextualCoaching = getContextualCoaching();
 
   const handleViewOriginalOffer = async () => {
     if (!application.originalOfferUrl) {
@@ -113,6 +167,33 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
       {onUpdate && (
         <div className="mt-4">
           <ApplicationChecklist application={application} onUpdate={onUpdate} />
+        </div>
+      )}
+
+      {/* Coaching contextuel */}
+      {contextualCoaching && (
+        <div className={`mt-5 p-4 rounded-lg border-2 ${
+          contextualCoaching.color === 'destructive' ? 'bg-destructive/5 border-destructive/20' :
+          contextualCoaching.color === 'warning' ? 'bg-warning/5 border-warning/20' :
+          contextualCoaching.color === 'success' ? 'bg-success/5 border-success/20' :
+          'bg-accent/5 border-accent/20'
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className={`p-2 rounded-lg ${
+              contextualCoaching.color === 'destructive' ? 'bg-destructive/10' :
+              contextualCoaching.color === 'warning' ? 'bg-warning/10' :
+              contextualCoaching.color === 'success' ? 'bg-success/10' :
+              'bg-accent/10'
+            }`}>
+              <contextualCoaching.icon className={`w-5 h-5 ${
+                contextualCoaching.color === 'destructive' ? 'text-destructive' :
+                contextualCoaching.color === 'warning' ? 'text-warning' :
+                contextualCoaching.color === 'success' ? 'text-success' :
+                'text-accent'
+              }`} />
+            </div>
+            <p className="text-sm font-medium leading-relaxed flex-1">{contextualCoaching.message}</p>
+          </div>
         </div>
       )}
 
