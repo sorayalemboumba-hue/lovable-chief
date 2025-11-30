@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Application } from '@/types/application';
 import { useApplications } from '@/hooks/useApplications';
-import { COACHING_LIBRARY } from '@/data/coaching';
 import { StatsCards } from '@/components/StatsCards';
 import { ApplicationCard } from '@/components/ApplicationCard';
 import { ApplicationForm } from '@/components/ApplicationForm';
@@ -23,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, LogOut, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { COACHING_LIBRARY } from '@/data/coaching';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -476,7 +476,7 @@ const Index = () => {
 
         {/* Productivité */}
         {activeTab === 'productivite' && (
-          <ProductivityView tips={COACHING_LIBRARY} />
+          <ProductivityView />
         )}
       </main>
 
