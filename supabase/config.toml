@@ -1,4 +1,4 @@
 project_id = "zumzawcdizlfiicouvyu"
 
 [functions.analyze-job-offer]
-verify_jwt = true
+verify_jwt = false

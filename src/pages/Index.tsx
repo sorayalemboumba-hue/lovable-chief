@@ -17,6 +17,7 @@ import { DataManager } from '@/components/DataManager';
 import { FilterPanel, FilterState } from '@/components/FilterPanel';
 import { DeadlineNotifications } from '@/components/DeadlineNotifications';
 import { SupabaseMigration } from '@/components/SupabaseMigration';
+import { MigrationButton } from '@/components/MigrationButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, Loader2 } from 'lucide-react';
@@ -162,6 +163,7 @@ const Index = () => {
             
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <DeadlineNotifications applications={applications} />
+              <MigrationButton />
               <Button 
                 variant="ghost" 
                 size="default"

@@ -29,16 +29,13 @@ export function SupabaseMigration() {
 
     // Check if there's data in Supabase
     try {
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from('applications')
-        .select('id', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true });
 
-      if (!error && data !== null) {
-        const count = (data as any).length || 0;
-        if (count > 0) {
-          setSupabaseCount(count);
-          setNeedsMigration(true);
-        }
+      if (!error && count && count > 0) {
+        setSupabaseCount(count);
+        setNeedsMigration(true);
       }
     } catch (err) {
       console.error('Error checking migration:', err);
