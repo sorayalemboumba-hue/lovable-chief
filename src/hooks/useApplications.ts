@@ -61,6 +61,11 @@ export function useApplications() {
         compatibility: app.compatibility || undefined,
         missingRequirements: (app.missing_requirements as any) || [],
         matchingSkills: (app.matching_skills as any) || [],
+        originalOfferUrl: app.original_offer_url || undefined,
+        publicationDate: app.publication_date || undefined,
+        applicationEmail: app.application_email || undefined,
+        applicationInstructions: app.application_instructions || undefined,
+        requiredDocuments: (app.required_documents as any) || [],
       }));
 
       setApplications(transformedData);
@@ -98,6 +103,11 @@ export function useApplications() {
           compatibility: application.compatibility,
           missing_requirements: application.missingRequirements as any || [],
           matching_skills: application.matchingSkills as any || [],
+          original_offer_url: application.originalOfferUrl,
+          publication_date: application.publicationDate,
+          application_email: application.applicationEmail,
+          application_instructions: application.applicationInstructions,
+          required_documents: application.requiredDocuments as any || [],
           user_id: user.id,
         })
         .select()
@@ -139,6 +149,11 @@ export function useApplications() {
           compatibility: updates.compatibility,
           missing_requirements: updates.missingRequirements as any,
           matching_skills: updates.matchingSkills as any,
+          original_offer_url: updates.originalOfferUrl,
+          publication_date: updates.publicationDate,
+          application_email: updates.applicationEmail,
+          application_instructions: updates.applicationInstructions,
+          required_documents: updates.requiredDocuments as any,
         })
         .eq('id', id);
 
@@ -211,6 +226,11 @@ export function useApplications() {
         compatibility: app.compatibility,
         missing_requirements: app.missingRequirements as any || [],
         matching_skills: app.matchingSkills as any || [],
+        original_offer_url: app.originalOfferUrl,
+        publication_date: app.publicationDate,
+        application_email: app.applicationEmail,
+        application_instructions: app.applicationInstructions,
+        required_documents: app.requiredDocuments as any || [],
         user_id: user.id,
       }));
 
