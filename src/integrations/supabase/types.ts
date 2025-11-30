@@ -19,13 +19,17 @@ export type Database = {
           actions: Json | null
           application_email: string | null
           application_instructions: string | null
+          ats_compliant: boolean | null
           compatibility: number | null
           contacts: Json | null
           created_at: string
+          cv_template_id: string | null
           deadline: string
           entreprise: string
           id: string
+          is_complete: boolean | null
           keywords: string | null
+          letter_template_id: string | null
           lieu: string
           matching_skills: Json | null
           missing_requirements: Json | null
@@ -34,6 +38,7 @@ export type Database = {
           poste: string
           priorite: number
           publication_date: string | null
+          recommended_channel: string | null
           referent: string | null
           required_documents: string[] | null
           statut: string
@@ -45,13 +50,17 @@ export type Database = {
           actions?: Json | null
           application_email?: string | null
           application_instructions?: string | null
+          ats_compliant?: boolean | null
           compatibility?: number | null
           contacts?: Json | null
           created_at?: string
+          cv_template_id?: string | null
           deadline: string
           entreprise: string
           id?: string
+          is_complete?: boolean | null
           keywords?: string | null
+          letter_template_id?: string | null
           lieu: string
           matching_skills?: Json | null
           missing_requirements?: Json | null
@@ -60,6 +69,7 @@ export type Database = {
           poste: string
           priorite?: number
           publication_date?: string | null
+          recommended_channel?: string | null
           referent?: string | null
           required_documents?: string[] | null
           statut: string
@@ -71,13 +81,17 @@ export type Database = {
           actions?: Json | null
           application_email?: string | null
           application_instructions?: string | null
+          ats_compliant?: boolean | null
           compatibility?: number | null
           contacts?: Json | null
           created_at?: string
+          cv_template_id?: string | null
           deadline?: string
           entreprise?: string
           id?: string
+          is_complete?: boolean | null
           keywords?: string | null
+          letter_template_id?: string | null
           lieu?: string
           matching_skills?: Json | null
           missing_requirements?: Json | null
@@ -86,6 +100,7 @@ export type Database = {
           poste?: string
           priorite?: number
           publication_date?: string | null
+          recommended_channel?: string | null
           referent?: string | null
           required_documents?: string[] | null
           statut?: string
@@ -93,7 +108,22 @@ export type Database = {
           url?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "applications_cv_template_id_fkey"
+            columns: ["cv_template_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_letter_template_id_fkey"
+            columns: ["letter_template_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       coaching_tips: {
         Row: {
@@ -118,6 +148,36 @@ export type Database = {
           note?: string
           title?: string
           url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      document_templates: {
+        Row: {
+          created_at: string
+          file_url: string
+          id: string
+          is_default: boolean
+          name: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_url: string
+          id?: string
+          is_default?: boolean
+          name: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_url?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          type?: string
           user_id?: string
         }
         Relationships: []
