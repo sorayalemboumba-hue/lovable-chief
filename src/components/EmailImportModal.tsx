@@ -39,6 +39,14 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
     setSelectedJobs(newSelected);
   };
 
+  const handleSelectAll = () => {
+    if (selectedJobs.size === parsedJobs.length) {
+      setSelectedJobs(new Set());
+    } else {
+      setSelectedJobs(new Set(parsedJobs.map((_, index) => index)));
+    }
+  };
+
   const handleImportSelectedJobs = () => {
     const today = new Date();
     const defaultDeadline = new Date(today);
@@ -105,7 +113,16 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
 
           {parsedJobs.length > 0 && (
             <div className="border border-border rounded-lg p-4 bg-card">
-              <h4 className="font-semibold mb-3">Sélectionnez les offres à importer :</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold">Sélectionnez les offres à importer :</h4>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleSelectAll}
+                >
+                  {selectedJobs.size === parsedJobs.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                </Button>
+              </div>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {parsedJobs.map((job, index) => (
                   <div 
@@ -123,6 +140,9 @@ export function EmailImportModal({ open, onClose, onImport }: EmailImportModalPr
                       <p className="text-xs text-muted-foreground truncate">
                         {job.entreprise} • {job.lieu}
                       </p>
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded mt-1 inline-block">
+                        {job.source}
+                      </span>
                     </div>
                   </div>
                 ))}
