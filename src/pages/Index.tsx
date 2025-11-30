@@ -13,9 +13,10 @@ import { LetterGeneratorModal } from '@/components/LetterGeneratorModal';
 import { CalendarView } from '@/components/CalendarView';
 import { TasksView } from '@/components/TasksView';
 import { ProductivityView } from '@/components/ProductivityView';
+import { DataManager } from '@/components/DataManager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap } from 'lucide-react';
+import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -24,6 +25,7 @@ const Index = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApplication, setEditingApplication] = useState<Application | undefined>();
   const [isEmailImportOpen, setIsEmailImportOpen] = useState(false);
+  const [isDataManagerOpen, setIsDataManagerOpen] = useState(false);
   const [selectedApplicationForCV, setSelectedApplicationForCV] = useState<Application | null>(null);
   const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'offres' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
@@ -80,12 +82,31 @@ const Index = () => {
   };
 
   const handleImportJobs = (jobs: Partial<Application>[]) => {
-    const newApplications = jobs.map(job => ({
+    // Detect duplicates based on entreprise + poste
+    const existingKeys = new Set(
+      applications.map(app => `${app.entreprise.toLowerCase()}-${app.poste.toLowerCase()}`)
+    );
+    
+    const uniqueJobs = jobs.filter(job => 
+      !existingKeys.has(`${job.entreprise?.toLowerCase()}-${job.poste?.toLowerCase()}`)
+    );
+
+    const newApplications = uniqueJobs.map(job => ({
       ...job,
       id: Date.now().toString() + Math.random(),
       createdAt: new Date().toISOString(),
     } as Application));
+    
+    const duplicates = jobs.length - uniqueJobs.length;
     setApplications([...applications, ...newApplications]);
+    
+    if (duplicates > 0) {
+      toast.info(`${duplicates} doublon(s) ignoré(s)`);
+    }
+  };
+
+  const handleImportData = (importedApps: Application[]) => {
+    setApplications([...applications, ...importedApps]);
   };
 
   const handleSaveCV = (cvUrl: string) => {
@@ -138,12 +159,23 @@ const Index = () => {
                 <Target className="w-6 h-6 text-white" />
               </div>
               <div>
-              <h1 className="text-2xl font-bold">Chief of Staff</h1>
-                <p className="text-sm text-muted-foreground">Suivi d'offres et candidatures</p>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  SoSoFlow
+                </h1>
+                <p className="text-sm text-muted-foreground">Votre assistant carrière intelligent</p>
               </div>
             </div>
             
             <div className="flex items-center gap-3">
+              <Button 
+                variant="ghost" 
+                size="lg" 
+                onClick={() => setIsDataManagerOpen(true)}
+                className="gap-2"
+              >
+                <Database className="w-5 h-5" />
+                Sauvegarder
+              </Button>
               <Button 
                 variant="outline" 
                 size="lg" 
@@ -446,6 +478,13 @@ const Index = () => {
           onSave={handleSaveLetter}
         />
       )}
+
+      <DataManager
+        applications={applications}
+        onImport={handleImportData}
+        open={isDataManagerOpen}
+        onClose={() => setIsDataManagerOpen(false)}
+      />
     </div>
   );
 };
