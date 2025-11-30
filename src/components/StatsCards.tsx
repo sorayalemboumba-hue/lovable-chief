@@ -1,6 +1,7 @@
-import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
-import { Target, Clock, CheckCircle, TrendingUp } from 'lucide-react';
+import { Application } from '@/types/application';
+import { Briefcase, AlertTriangle, Target, TrendingUp } from 'lucide-react';
+import { getDaysUntil } from '@/lib/dateUtils';
 
 interface StatsCardsProps {
   applications: Application[];
@@ -8,59 +9,64 @@ interface StatsCardsProps {
 
 export function StatsCards({ applications }: StatsCardsProps) {
   const total = applications.length;
-  const completed = applications.filter(a => a.statut === 'soumise' || a.statut === 'entretien').length;
-  const inProgress = applications.filter(a => a.statut === 'en cours').length;
-  const toComplete = applications.filter(a => a.statut === 'à compléter').length;
-
-  const stats = [
-    { 
-      label: 'Total candidatures', 
-      value: total, 
-      icon: Target, 
-      gradient: 'from-primary to-primary/70',
-      bgColor: 'bg-primary/10'
-    },
-    { 
-      label: 'En cours', 
-      value: inProgress, 
-      icon: Clock, 
-      gradient: 'from-accent to-accent/70',
-      bgColor: 'bg-accent/10'
-    },
-    { 
-      label: 'À compléter', 
-      value: toComplete, 
-      icon: TrendingUp, 
-      gradient: 'from-warning to-warning/70',
-      bgColor: 'bg-warning/10'
-    },
-    { 
-      label: 'Soumises', 
-      value: completed, 
-      icon: CheckCircle, 
-      gradient: 'from-success to-success/70',
-      bgColor: 'bg-success/10'
-    },
-  ];
+  const urgent = applications.filter(app => {
+    const days = getDaysUntil(app.deadline);
+    return days <= 3 && days >= 0;
+  }).length;
+  const avgCompatibility = applications.length > 0
+    ? Math.round(applications.reduce((sum, app) => sum + (app.priorite * 20), 0) / applications.length)
+    : 0;
+  const advanced = applications.filter(app => app.statut === 'soumise' || app.statut === 'entretien').length;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
-        return (
-          <Card key={stat.label} className={`p-6 ${stat.bgColor} border-2 hover:shadow-lg transition-all duration-300`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold">{stat.value}</p>
-              </div>
-              <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient}`}>
-                <Icon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </Card>
-        );
-      })}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <Card className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-primary/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-primary mb-1">Total candidatures</p>
+            <p className="text-3xl font-bold">{total}</p>
+          </div>
+          <div className="p-3 bg-primary/20 rounded-lg">
+            <Briefcase className="w-6 h-6 text-primary" />
+          </div>
+        </div>
+      </Card>
+      
+      <Card className="p-6 bg-gradient-to-br from-destructive/10 to-destructive/5 border-2 border-destructive/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-destructive mb-1">Deadlines urgentes</p>
+            <p className="text-3xl font-bold">{urgent}</p>
+          </div>
+          <div className="p-3 bg-destructive/20 rounded-lg">
+            <AlertTriangle className="w-6 h-6 text-destructive" />
+          </div>
+        </div>
+      </Card>
+      
+      <Card className="p-6 bg-gradient-to-br from-success/10 to-success/5 border-2 border-success/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-success mb-1">Compatibilité moyenne</p>
+            <p className="text-3xl font-bold">{avgCompatibility}%</p>
+          </div>
+          <div className="p-3 bg-success/20 rounded-lg">
+            <Target className="w-6 h-6 text-success" />
+          </div>
+        </div>
+      </Card>
+      
+      <Card className="p-6 bg-gradient-to-br from-accent/10 to-accent/5 border-2 border-accent/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-accent mb-1">Candidatures avancées</p>
+            <p className="text-3xl font-bold">{advanced}</p>
+          </div>
+          <div className="p-3 bg-accent/20 rounded-lg">
+            <TrendingUp className="w-6 h-6 text-accent" />
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
