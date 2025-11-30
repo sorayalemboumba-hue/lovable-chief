@@ -66,6 +66,11 @@ export function useApplications() {
         applicationEmail: app.application_email || undefined,
         applicationInstructions: app.application_instructions || undefined,
         requiredDocuments: (app.required_documents as any) || [],
+        cv_template_id: app.cv_template_id || undefined,
+        letter_template_id: app.letter_template_id || undefined,
+        is_complete: app.is_complete || false,
+        recommended_channel: app.recommended_channel || undefined,
+        ats_compliant: app.ats_compliant ?? true,
       }));
 
       setApplications(transformedData);
@@ -154,6 +159,11 @@ export function useApplications() {
           application_email: updates.applicationEmail,
           application_instructions: updates.applicationInstructions,
           required_documents: updates.requiredDocuments as any,
+          cv_template_id: updates.cv_template_id,
+          letter_template_id: updates.letter_template_id,
+          is_complete: updates.is_complete,
+          recommended_channel: updates.recommended_channel,
+          ats_compliant: updates.ats_compliant,
         })
         .eq('id', id);
 

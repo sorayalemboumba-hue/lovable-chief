@@ -109,13 +109,12 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="deadline">Deadline *</Label>
+              <Label htmlFor="deadline">Deadline</Label>
               <Input
                 id="deadline"
                 type="date"
                 value={formData.deadline}
                 onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                required
               />
             </div>
           </div>
