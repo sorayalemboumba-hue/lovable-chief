@@ -164,81 +164,81 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
+      <header className="border-b-2 bg-card/50 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-primary to-accent">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-primary to-accent shadow-md">
                 <Target className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                   SoSoFlow
                 </h1>
-                <p className="text-sm text-muted-foreground">Votre assistant carrière intelligent</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Votre assistant carrière intelligent</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <DeadlineNotifications applications={applications} />
               <Button 
                 variant="ghost" 
-                size="lg" 
+                size="default"
                 onClick={() => setIsDataManagerOpen(true)}
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-none"
               >
                 <Database className="w-5 h-5" />
-                Sauvegarder
+                <span className="hidden sm:inline">Sauvegarder</span>
               </Button>
               <Button 
                 variant="outline" 
-                size="lg" 
+                size="default"
                 onClick={() => setActiveTab('calendrier')}
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-none"
               >
                 <CalendarIcon className="w-5 h-5" />
-                Calendrier
+                <span className="hidden sm:inline">Calendrier</span>
               </Button>
               <Button 
                 variant="ghost" 
-                size="lg" 
+                size="default"
                 onClick={handleSignOut}
                 className="gap-2"
               >
                 <LogOut className="w-5 h-5" />
-                Déconnexion
+                <span className="hidden sm:inline">Déconnexion</span>
               </Button>
-              <Button onClick={handleNewApplication} size="lg" className="gap-2">
+              <Button onClick={handleNewApplication} size="default" className="gap-2 flex-1 sm:flex-none">
                 <Plus className="w-5 h-5" />
-                Nouvelle offre
+                <span className="hidden sm:inline">Nouvelle offre</span>
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Navigation Tabs */}
-        <div className="flex flex-wrap gap-2 mb-8">
+        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                className={`min-h-[44px] px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg flex items-center gap-2 transition-all duration-200 font-medium ${
                   activeTab === tab.id 
-                    ? 'bg-primary text-primary-foreground shadow-lg' 
-                    : 'bg-card text-card-foreground hover:bg-muted border border-border'
+                    ? 'bg-primary text-primary-foreground shadow-lg scale-[1.02]' 
+                    : 'bg-card text-card-foreground hover:bg-muted hover:shadow-md border-2 border-border'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                {tab.label}
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm sm:text-base whitespace-nowrap">{tab.label}</span>
                 {tab.badge !== undefined && (
-                  <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
                     activeTab === tab.id 
                       ? 'bg-primary-foreground text-primary' 
-                      : 'bg-primary/10 text-primary'
+                      : 'bg-primary/15 text-primary'
                   }`}>
                     {tab.badge}
                   </span>
@@ -258,34 +258,34 @@ const Index = () => {
               <div className="lg:col-span-2 space-y-6">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
-                placeholder="Rechercher..."
+                placeholder="Rechercher une entreprise, poste ou lieu..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-12 text-base"
               />
             </div>
 
             {/* Applications list */}
             {sortedApplications.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Target className="w-8 h-8 text-muted-foreground" />
+              <div className="text-center py-16 sm:py-20 px-4">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                  <Target className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Aucune offre ni candidature</h3>
-                <p className="text-muted-foreground mb-4">
+                <h3 className="text-lg sm:text-xl font-semibold mb-2">Aucune offre ni candidature</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-6 max-w-md mx-auto leading-relaxed">
                   {searchQuery ? 'Aucun résultat trouvé' : 'Importez des offres ou créez votre première candidature'}
                 </p>
                 {!searchQuery && (
-                  <Button onClick={handleNewApplication}>
+                  <Button onClick={handleNewApplication} size="lg">
                     <Plus className="w-4 h-4 mr-2" />
                     Créer une offre
                   </Button>
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 sm:space-y-5">
                 {sortedApplications.map((application) => (
                   <ApplicationCard
                     key={application.id}
@@ -312,26 +312,26 @@ const Index = () => {
         {/* Offres disponibles */}
         {activeTab === 'offres' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-2xl font-bold">Offres disponibles</h2>
-                <p className="text-muted-foreground">Annonces importées et offres à traiter</p>
+                <h2 className="text-2xl sm:text-3xl font-bold mb-1">Offres disponibles</h2>
+                <p className="text-sm sm:text-base text-muted-foreground">Annonces importées et offres à traiter</p>
               </div>
-              <Button onClick={() => setIsEmailImportOpen(true)} variant="outline" className="gap-2">
+              <Button onClick={() => setIsEmailImportOpen(true)} variant="outline" size="lg" className="gap-2 w-full sm:w-auto">
                 <Plus className="w-4 h-4" />
                 Importer des offres
               </Button>
             </div>
 
             {/* Search and Filters */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   placeholder="Rechercher une offre..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-12"
                 />
               </div>
               <FilterPanel
@@ -347,23 +347,23 @@ const Index = () => {
               app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
               app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
             ).length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Target className="w-8 h-8 text-muted-foreground" />
+              <div className="text-center py-16 sm:py-20 px-4">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                  <Target className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Aucune offre</h3>
-                <p className="text-muted-foreground mb-4">
+                <h3 className="text-lg sm:text-xl font-semibold mb-2">Aucune offre</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-6 max-w-md mx-auto leading-relaxed">
                   {searchQuery ? 'Aucun résultat trouvé' : 'Importez des offres d\'emploi pour commencer'}
                 </p>
                 {!searchQuery && (
-                  <Button onClick={() => setIsEmailImportOpen(true)}>
+                  <Button onClick={() => setIsEmailImportOpen(true)} size="lg">
                     <Plus className="w-4 h-4 mr-2" />
                     Importer des offres
                   </Button>
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 sm:space-y-5">
                 {filteredOffres
                   .filter(app => 
                     app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -394,20 +394,20 @@ const Index = () => {
         {/* Mes candidatures */}
         {activeTab === 'candidatures' && (
           <div className="space-y-6">
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold">Mes candidatures</h2>
-              <p className="text-muted-foreground">Dossiers envoyés et suivis d'entretiens</p>
+            <div className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-1">Mes candidatures</h2>
+              <p className="text-sm sm:text-base text-muted-foreground">Dossiers envoyés et suivis d'entretiens</p>
             </div>
 
             {/* Search and Filters */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   placeholder="Rechercher une candidature..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-12"
                 />
               </div>
               <FilterPanel
