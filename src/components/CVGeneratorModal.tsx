@@ -16,7 +16,7 @@ interface CVGeneratorModalProps {
 export function CVGeneratorModal({ candidature, open, onClose, onSave }: CVGeneratorModalProps) {
   const [generating, setGenerating] = useState(false);
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     setGenerating(true);
     try {
       const pdfDataUrl = generateCV(candidature);
