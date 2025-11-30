@@ -26,7 +26,15 @@ const Index = () => {
   const [isEmailImportOpen, setIsEmailImportOpen] = useState(false);
   const [selectedApplicationForCV, setSelectedApplicationForCV] = useState<Application | null>(null);
   const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'offres' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
+
+  // Distinction entre offres (à compléter/en cours) et candidatures (soumise/entretien)
+  const offres = applications.filter(app => 
+    app.statut === 'à compléter' || app.statut === 'en cours'
+  );
+  const candidatures = applications.filter(app => 
+    app.statut === 'soumise' || app.statut === 'entretien'
+  );
 
   const filteredApplications = applications.filter(app => 
     app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -45,10 +53,11 @@ const Index = () => {
       setApplications(applications.map(app => 
         app.id === application.id ? application : app
       ));
-      toast.success('Candidature mise à jour');
+      const isOffer = application.statut === 'à compléter' || application.statut === 'en cours';
+      toast.success(isOffer ? 'Offre mise à jour' : 'Candidature mise à jour');
     } else {
       setApplications([...applications, application]);
-      toast.success('Candidature créée');
+      toast.success('Offre créée');
     }
     setEditingApplication(undefined);
   };
@@ -59,8 +68,10 @@ const Index = () => {
   };
 
   const handleDelete = (id: string) => {
+    const app = applications.find(a => a.id === id);
+    const isOffer = app && (app.statut === 'à compléter' || app.statut === 'en cours');
     setApplications(applications.filter(app => app.id !== id));
-    toast.success('Candidature supprimée');
+    toast.success(isOffer ? 'Offre supprimée' : 'Candidature supprimée');
   };
 
   const handleNewApplication = () => {
@@ -109,7 +120,8 @@ const Index = () => {
 
   const tabs = [
     { id: 'dashboard' as const, label: 'Tableau de bord', icon: BarChart3 },
-    { id: 'candidatures' as const, label: 'Candidatures', icon: Briefcase, badge: applications.length },
+    { id: 'offres' as const, label: 'Offres disponibles', icon: Target, badge: offres.length },
+    { id: 'candidatures' as const, label: 'Mes candidatures', icon: Briefcase, badge: candidatures.length },
     { id: 'calendrier' as const, label: 'Calendrier', icon: CalendarIcon },
     { id: 'taches' as const, label: 'Tâches', icon: CheckCircle },
     { id: 'productivite' as const, label: 'Productivité', icon: Zap },
@@ -126,8 +138,8 @@ const Index = () => {
                 <Target className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Chief of Staff</h1>
-                <p className="text-sm text-muted-foreground">Gestion de candidatures</p>
+              <h1 className="text-2xl font-bold">Chief of Staff</h1>
+                <p className="text-sm text-muted-foreground">Suivi d'offres et candidatures</p>
               </div>
             </div>
             
@@ -143,7 +155,7 @@ const Index = () => {
               </Button>
               <Button onClick={handleNewApplication} size="lg" className="gap-2">
                 <Plus className="w-5 h-5" />
-                Nouvelle candidature
+                Nouvelle offre
               </Button>
             </div>
           </div>
@@ -193,7 +205,7 @@ const Index = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
-                placeholder="Rechercher une candidature..."
+                placeholder="Rechercher..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -206,14 +218,14 @@ const Index = () => {
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                   <Target className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Aucune candidature</h3>
+                <h3 className="text-lg font-semibold mb-2">Aucune offre ni candidature</h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchQuery ? 'Aucun résultat trouvé' : 'Commencez par ajouter votre première candidature'}
+                  {searchQuery ? 'Aucun résultat trouvé' : 'Importez des offres ou créez votre première candidature'}
                 </p>
                 {!searchQuery && (
                   <Button onClick={handleNewApplication}>
                     <Plus className="w-4 h-4 mr-2" />
-                    Créer une candidature
+                    Créer une offre
                   </Button>
                 )}
               </div>
@@ -242,9 +254,89 @@ const Index = () => {
           </div>
         )}
 
-        {/* Candidatures */}
+        {/* Offres disponibles */}
+        {activeTab === 'offres' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-bold">Offres disponibles</h2>
+                <p className="text-muted-foreground">Annonces importées et offres à traiter</p>
+              </div>
+              <Button onClick={() => setIsEmailImportOpen(true)} variant="outline" className="gap-2">
+                <Plus className="w-4 h-4" />
+                Importer des offres
+              </Button>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher une offre..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Offres list */}
+            {offres.filter(app => 
+              app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
+            ).length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Target className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Aucune offre</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchQuery ? 'Aucun résultat trouvé' : 'Importez des offres d\'emploi pour commencer'}
+                </p>
+                {!searchQuery && (
+                  <Button onClick={() => setIsEmailImportOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Importer des offres
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {offres
+                  .filter(app => 
+                    app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .sort((a, b) => {
+                    const deadlineCompare = new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+                    if (deadlineCompare !== 0) return deadlineCompare;
+                    return b.priorite - a.priorite;
+                  })
+                  .map((application) => (
+                    <ApplicationCard
+                      key={application.id}
+                      application={application}
+                      onEdit={() => handleEdit(application)}
+                      onDelete={() => handleDelete(application.id)}
+                      onGenerateCV={() => setSelectedApplicationForCV(application)}
+                      onGenerateLetter={() => setSelectedApplicationForLetter(application)}
+                      onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Mes candidatures */}
         {activeTab === 'candidatures' && (
           <div className="space-y-6">
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold">Mes candidatures</h2>
+              <p className="text-muted-foreground">Dossiers envoyés et suivis d'entretiens</p>
+            </div>
+
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -256,36 +348,45 @@ const Index = () => {
               />
             </div>
 
-            {/* Applications list */}
-            {sortedApplications.length === 0 ? (
+            {/* Candidatures list */}
+            {candidatures.filter(app => 
+              app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
+            ).length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Target className="w-8 h-8 text-muted-foreground" />
+                  <Briefcase className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Aucune candidature</h3>
+                <h3 className="text-lg font-semibold mb-2">Aucune candidature envoyée</h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchQuery ? 'Aucun résultat trouvé' : 'Commencez par ajouter votre première candidature'}
+                  {searchQuery ? 'Aucun résultat trouvé' : 'Passez une offre au statut "soumise" pour la voir ici'}
                 </p>
-                {!searchQuery && (
-                  <Button onClick={handleNewApplication}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer une candidature
-                  </Button>
-                )}
               </div>
             ) : (
               <div className="space-y-4">
-                {sortedApplications.map((application) => (
-                  <ApplicationCard
-                    key={application.id}
-                    application={application}
-                    onEdit={() => handleEdit(application)}
-                    onDelete={() => handleDelete(application.id)}
-                    onGenerateCV={() => setSelectedApplicationForCV(application)}
-                    onGenerateLetter={() => setSelectedApplicationForLetter(application)}
-                    onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
-                  />
-                ))}
+                {candidatures
+                  .filter(app => 
+                    app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .sort((a, b) => {
+                    const deadlineCompare = new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+                    if (deadlineCompare !== 0) return deadlineCompare;
+                    return b.priorite - a.priorite;
+                  })
+                  .map((application) => (
+                    <ApplicationCard
+                      key={application.id}
+                      application={application}
+                      onEdit={() => handleEdit(application)}
+                      onDelete={() => handleDelete(application.id)}
+                      onGenerateCV={() => setSelectedApplicationForCV(application)}
+                      onGenerateLetter={() => setSelectedApplicationForLetter(application)}
+                      onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
+                    />
+                  ))}
               </div>
             )}
           </div>
@@ -319,6 +420,7 @@ const Index = () => {
           setEditingApplication(undefined);
         }}
         onSave={handleSave}
+        isNewOffer={!editingApplication}
       />
 
       <EmailImportModal

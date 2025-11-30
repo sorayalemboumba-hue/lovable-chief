@@ -13,6 +13,7 @@ interface ApplicationFormProps {
   open: boolean;
   onClose: () => void;
   onSave: (application: Application) => void;
+  isNewOffer?: boolean;
 }
 
 const STATUS_OPTIONS: ApplicationStatus[] = ["à compléter", "en cours", "soumise", "entretien"];
@@ -22,7 +23,7 @@ const TYPE_OPTIONS: { value: ApplicationType; label: string; description: string
   { value: 'recommandée', label: 'Candidature recommandée', description: 'Via un contact ou réseau' }
 ];
 
-export function ApplicationForm({ application, open, onClose, onSave }: ApplicationFormProps) {
+export function ApplicationForm({ application, open, onClose, onSave, isNewOffer }: ApplicationFormProps) {
   const [formData, setFormData] = useState<Partial<Application>>(
     application || {
       entreprise: '',
@@ -68,7 +69,9 @@ export function ApplicationForm({ application, open, onClose, onSave }: Applicat
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{application ? 'Modifier la candidature' : 'Nouvelle candidature'}</DialogTitle>
+          <DialogTitle>
+            {application ? (application.statut === 'soumise' || application.statut === 'entretien' ? 'Modifier la candidature' : 'Modifier l\'offre') : 'Nouvelle offre'}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
