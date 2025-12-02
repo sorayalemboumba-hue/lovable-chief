@@ -12,7 +12,7 @@ interface ApplicationCardProps {
   onDelete: () => void;
   onGenerateCV?: () => void;
   onGenerateLetter?: () => void;
-  onUpdate: (app: Application) => void;
+  onUpdate: (updates: Partial<Application>) => void;
 }
 
 export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: ApplicationCardProps) {
@@ -48,7 +48,7 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
   };
 
   const handleBriefUpdate = (updates: Partial<Application>) => {
-    onUpdate({ ...application, ...updates });
+    onUpdate(updates);
   };
 
   return (
@@ -91,7 +91,7 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
           >
             📄 Créer CV & Lettre Soraya
           </Button>
-          <Button onClick={() => onUpdate({...application, statut: 'soumise'})}>
+          <Button onClick={() => onUpdate({ statut: 'soumise' })}>
             ✅ Marquer comme Envoyé
           </Button>
         </div>
