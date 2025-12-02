@@ -146,27 +146,6 @@ export function ApplicationWorkflow({ application, onUpdate }: ApplicationWorkfl
   const contactEmail = application.applicationEmail || application.contacts?.[0]?.email;
   const contactName = application.contacts?.[0]?.nom;
 
-  const steps = [
-    {
-      id: 'analyze',
-      title: 'Analyser l\'offre',
-      icon: Sparkles,
-      done: !!application.compatibility,
-      action: () => handleAnalyze(),
-      actionLabel: 'Analyser avec IA'
-    },
-    {
-      id: 'documents',
-      title: 'Sélectionner les modèles',
-      icon: FileText,
-      done: !!application.cv_template_id,
-      action: () => setShowDocLib(true),
-      actionLabel: 'Bibliothèque'
-    }
-  ];
-
-  const completionRate = steps.filter(s => s.done).length / steps.length * 100;
-
   return (
     <>
       <Card className="p-5 border-2 bg-gradient-to-br from-primary/5 to-accent/5">
@@ -176,61 +155,17 @@ export function ApplicationWorkflow({ application, onUpdate }: ApplicationWorkfl
             <div>
               <h4 className="font-semibold text-base sm:text-lg mb-1">Brief Candidature</h4>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Adapté au canal de recrutement détecté
+                {channel ? `Canal détecté: ${channel === 'email' ? 'Email' : channel === 'linkedin' ? 'LinkedIn' : channel === 'jobup' ? 'JobUp' : channel === 'portal' ? 'Portail ATS' : channel}` : 'Adapté au canal de recrutement détecté'}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-primary">{Math.round(completionRate)}%</div>
-                <div className="text-xs text-muted-foreground">Préparé</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Steps */}
-          <div className="space-y-3">
-            {steps.map((step) => {
-              const Icon = step.icon;
-              return (
-                <div 
-                  key={step.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                    step.done ? 'bg-success/5 border-success/20' : 'bg-background border-border'
-                  }`}
-                >
-                  <div className={`p-2 rounded-full ${step.done ? 'bg-success/10' : 'bg-muted'}`}>
-                    {step.done ? (
-                      <CheckCircle2 className="w-5 h-5 text-success" />
-                    ) : (
-                      <Icon className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium text-sm">{step.title}</span>
-                    {step.done && (
-                      <Badge variant="outline" className="ml-2 text-xs bg-success/10 text-success border-success/20">
-                        Fait
-                      </Badge>
-                    )}
-                  </div>
-                  {step.action && !step.done && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={step.action}
-                      disabled={step.id === 'analyze' && analyzing}
-                      className="flex-shrink-0"
-                    >
-                      {step.id === 'analyze' && analyzing ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        step.actionLabel
-                      )}
-                    </Button>
-                  )}
+            {application.compatibility && (
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-primary">{application.compatibility}%</div>
+                  <div className="text-xs text-muted-foreground">Compatibilité</div>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
 
           {/* ===== SCÉNARIO A: Email / Chasseur de tête ===== */}
