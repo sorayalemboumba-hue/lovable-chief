@@ -17,6 +17,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/generate/:id" element={<CVGenerator />} />
           <Route path="/generate" element={<CVGenerator />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
