@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Application } from '@/types/application';
 import { useLocalApplications } from '@/hooks/useLocalApplications';
-import { StatsCards } from '@/components/StatsCards';
+import { DashboardStats, ApplicationList } from '@/components/dashboard';
 import { ApplicationCard } from '@/components/ApplicationCard';
 import { ApplicationForm } from '@/components/ApplicationForm';
 import { CoachingPanel } from '@/components/CoachingPanel';
@@ -38,16 +38,8 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'offres' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
   const [filters, setFilters] = useState<FilterState>({});
 
-  // Distinction entre offres (à compléter/en cours) et candidatures (soumise/entretien)
-  const offres = applications.filter(app => 
-    app.statut === 'à compléter' || app.statut === 'en cours'
-  );
-  const candidatures = applications.filter(app => 
-    app.statut === 'soumise' || app.statut === 'entretien'
-  );
-
-  // Apply filters
-  const applyFilters = (apps: Application[]) => {
+  // Memoized filter function
+  const applyFilters = useCallback((apps: Application[]) => {
     return apps.filter(app => {
       if (filters.statut && app.statut !== filters.statut) return false;
       if (filters.prioriteMin !== undefined && app.priorite < filters.prioriteMin) return false;
@@ -56,20 +48,64 @@ const Index = () => {
       if (filters.dateFin && app.deadline > filters.dateFin) return false;
       return true;
     });
-  };
+  }, [filters]);
 
-  const filteredOffres = applyFilters(offres);
-  const filteredCandidatures = applyFilters(candidatures);
+  // Memoized: Distinction entre offres et candidatures
+  const { offres, candidatures } = useMemo(() => ({
+    offres: applications.filter(app => app.statut === 'à compléter' || app.statut === 'en cours'),
+    candidatures: applications.filter(app => app.statut === 'soumise' || app.statut === 'entretien')
+  }), [applications]);
 
-  const filteredApplications = applications.filter(app => 
-    app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Memoized: Filtered lists
+  const { filteredOffres, filteredCandidatures } = useMemo(() => ({
+    filteredOffres: applyFilters(offres),
+    filteredCandidatures: applyFilters(candidatures)
+  }), [offres, candidatures, applyFilters]);
 
-  const sortedApplications = sortByPriority(filteredApplications);
+  // Memoized: Sorted applications for dashboard (recalcule ONLY when dependencies change)
+  const sortedApplications = useMemo(() => {
+    const filtered = applications.filter(app => 
+      app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return sortByPriority(filtered);
+  }, [applications, searchQuery]);
 
-  const handleSave = async (application: Application) => {
+  // Memoized: Sorted offres list
+  const sortedFilteredOffres = useMemo(() => {
+    return filteredOffres
+      .filter(app => 
+        app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => {
+        const scoreA = getPriorityScore(a);
+        const scoreB = getPriorityScore(b);
+        if (scoreB.total !== scoreA.total) return scoreB.total - scoreA.total;
+        return b.priorite - a.priorite;
+      });
+  }, [filteredOffres, searchQuery]);
+
+  // Memoized: Sorted candidatures list
+  const sortedFilteredCandidatures = useMemo(() => {
+    return filteredCandidatures
+      .filter(app => 
+        app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => {
+        const scoreA = getPriorityScore(a);
+        const scoreB = getPriorityScore(b);
+        if (scoreB.total !== scoreA.total) return scoreB.total - scoreA.total;
+        return b.priorite - a.priorite;
+      });
+  }, [filteredCandidatures, searchQuery]);
+
+  // useCallback: Handlers to prevent unnecessary re-renders
+  const handleSave = useCallback(async (application: Application) => {
     if (editingApplication) {
       await updateApplication(application.id, application);
     } else {
@@ -77,58 +113,67 @@ const Index = () => {
     }
     setEditingApplication(undefined);
     setIsFormOpen(false);
-  };
+  }, [editingApplication, updateApplication, addApplication]);
 
-  const handleEdit = (application: Application) => {
+  const handleEdit = useCallback((application: Application) => {
     setEditingApplication(application);
     setIsFormOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     await deleteApplication(id);
-  };
+  }, [deleteApplication]);
 
-  const handleNewApplication = () => {
+  const handleNewApplication = useCallback(() => {
     setEditingApplication(undefined);
     setIsFormOpen(true);
-  };
+  }, []);
 
-  const handleImportJobs = async (jobs: Partial<Application>[]): Promise<string[]> => {
+  const handleImportJobs = useCallback(async (jobs: Partial<Application>[]): Promise<string[]> => {
     return await importApplications(jobs);
-  };
+  }, [importApplications]);
 
-  const handleImportData = async (importedApps: Application[]) => {
+  const handleImportData = useCallback(async (importedApps: Application[]) => {
     await importApplications(importedApps);
-  };
+  }, [importApplications]);
 
-  const handleSaveCV = async (cvUrl: string) => {
+  const handleSaveCV = useCallback(async (cvUrl: string) => {
     if (selectedApplicationForCV) {
       await updateApplication(selectedApplicationForCV.id, { url: cvUrl });
       toast.success('CV sauvegardé');
     }
     setSelectedApplicationForCV(null);
-  };
+  }, [selectedApplicationForCV, updateApplication]);
 
-  const handleSaveLetter = async (lettreUrl: string) => {
+  const handleSaveLetter = useCallback(async (lettreUrl: string) => {
     if (selectedApplicationForLetter) {
       await updateApplication(selectedApplicationForLetter.id, { url: lettreUrl });
       toast.success('Lettre sauvegardée');
     }
     setSelectedApplicationForLetter(null);
-  };
+  }, [selectedApplicationForLetter, updateApplication]);
 
-  const handleUpdateApplication = async (id: string, updates: Partial<Application>) => {
+  const handleUpdateApplication = useCallback(async (id: string, updates: Partial<Application>) => {
     await updateApplication(id, updates);
-  };
+  }, [updateApplication]);
 
-  const tabs = [
+  const handleGenerateCV = useCallback((application: Application) => {
+    setSelectedApplicationForCV(application);
+  }, []);
+
+  const handleGenerateLetter = useCallback((application: Application) => {
+    setSelectedApplicationForLetter(application);
+  }, []);
+
+  // Memoized tabs config
+  const tabs = useMemo(() => [
     { id: 'dashboard' as const, label: 'Tableau de bord', icon: BarChart3 },
     { id: 'offres' as const, label: 'Offres disponibles', icon: Target, badge: filteredOffres.length },
     { id: 'candidatures' as const, label: 'Mes candidatures', icon: Briefcase, badge: filteredCandidatures.length },
     { id: 'calendrier' as const, label: 'Calendrier', icon: CalendarIcon },
     { id: 'taches' as const, label: 'Tâches', icon: CheckCircle },
     { id: 'productivite' as const, label: 'Productivité', icon: Zap },
-  ];
+  ], [filteredOffres.length, filteredCandidatures.length]);
 
   if (loading) {
     return (
@@ -225,55 +270,34 @@ const Index = () => {
         {/* Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            <StatsCards applications={applications} />
+            <DashboardStats applications={applications} />
             <IntelligentTools onImportEmail={() => setIsEmailImportOpen(true)} />
             
             <div className="grid lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-6">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher une entreprise, poste ou lieu..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 text-base"
-              />
-            </div>
-
-            {/* Applications list */}
-            {sortedApplications.length === 0 ? (
-              <div className="text-center py-16 sm:py-20 px-4">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                  <Target className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg sm:text-xl font-semibold mb-2">Aucune offre ni candidature</h3>
-                <p className="text-sm sm:text-base text-muted-foreground mb-6 max-w-md mx-auto leading-relaxed">
-                  {searchQuery ? 'Aucun résultat trouvé' : 'Importez des offres ou créez votre première candidature'}
-                </p>
-                {!searchQuery && (
-                  <Button onClick={handleNewApplication} size="lg">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer une offre
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4 sm:space-y-5">
-                {sortedApplications.map((application) => (
-                  <ApplicationCard
-                    key={application.id}
-                    application={application}
-                    onEdit={() => handleEdit(application)}
-                    onDelete={() => handleDelete(application.id)}
-                    onGenerateCV={() => setSelectedApplicationForCV(application)}
-                    onGenerateLetter={() => setSelectedApplicationForLetter(application)}
-                    onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher une entreprise, poste ou lieu..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-12 text-base"
                   />
-                ))}
+                </div>
+
+                {/* Applications list */}
+                <ApplicationList
+                  applications={sortedApplications}
+                  searchQuery={searchQuery}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onGenerateCV={handleGenerateCV}
+                  onGenerateLetter={handleGenerateLetter}
+                  onUpdate={handleUpdateApplication}
+                  onNewApplication={handleNewApplication}
+                />
               </div>
-            )}
-          </div>
 
               {/* Sidebar */}
               <div className="lg:col-span-1">
@@ -316,11 +340,7 @@ const Index = () => {
             </div>
 
             {/* Offres list */}
-            {filteredOffres.filter(app => 
-              app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
-            ).length === 0 ? (
+            {sortedFilteredOffres.length === 0 ? (
               <div className="text-center py-16 sm:py-20 px-4">
                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                   <Target className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
@@ -338,30 +358,17 @@ const Index = () => {
               </div>
             ) : (
               <div className="space-y-4 sm:space-y-5">
-                {filteredOffres
-                  .filter(app => 
-                    app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .slice()
-                  .sort((a, b) => {
-                    const scoreA = getPriorityScore(a);
-                    const scoreB = getPriorityScore(b);
-                    if (scoreB.total !== scoreA.total) return scoreB.total - scoreA.total;
-                    return b.priorite - a.priorite;
-                  })
-                  .map((application) => (
-                    <ApplicationCard
-                      key={application.id}
-                      application={application}
-                      onEdit={() => handleEdit(application)}
-                      onDelete={() => handleDelete(application.id)}
-                      onGenerateCV={() => setSelectedApplicationForCV(application)}
-                      onGenerateLetter={() => setSelectedApplicationForLetter(application)}
-                      onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
-                    />
-                  ))}
+                {sortedFilteredOffres.map((application) => (
+                  <ApplicationCard
+                    key={application.id}
+                    application={application}
+                    onEdit={() => handleEdit(application)}
+                    onDelete={() => handleDelete(application.id)}
+                    onGenerateCV={() => handleGenerateCV(application)}
+                    onGenerateLetter={() => handleGenerateLetter(application)}
+                    onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -394,11 +401,7 @@ const Index = () => {
             </div>
 
             {/* Candidatures list */}
-            {filteredCandidatures.filter(app => 
-              app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
-            ).length === 0 ? (
+            {sortedFilteredCandidatures.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                   <Briefcase className="w-8 h-8 text-muted-foreground" />
@@ -410,30 +413,17 @@ const Index = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredCandidatures
-                  .filter(app => 
-                    app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .slice()
-                  .sort((a, b) => {
-                    const scoreA = getPriorityScore(a);
-                    const scoreB = getPriorityScore(b);
-                    if (scoreB.total !== scoreA.total) return scoreB.total - scoreA.total;
-                    return b.priorite - a.priorite;
-                  })
-                  .map((application) => (
-                    <ApplicationCard
-                      key={application.id}
-                      application={application}
-                      onEdit={() => handleEdit(application)}
-                      onDelete={() => handleDelete(application.id)}
-                      onGenerateCV={() => setSelectedApplicationForCV(application)}
-                      onGenerateLetter={() => setSelectedApplicationForLetter(application)}
-                      onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
-                    />
-                  ))}
+                {sortedFilteredCandidatures.map((application) => (
+                  <ApplicationCard
+                    key={application.id}
+                    application={application}
+                    onEdit={() => handleEdit(application)}
+                    onDelete={() => handleDelete(application.id)}
+                    onGenerateCV={() => handleGenerateCV(application)}
+                    onGenerateLetter={() => handleGenerateLetter(application)}
+                    onUpdate={(updates) => handleUpdateApplication(application.id, updates)}
+                  />
+                ))}
               </div>
             )}
           </div>
