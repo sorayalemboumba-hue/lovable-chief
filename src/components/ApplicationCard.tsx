@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Application } from "@/types/application";
 import { BriefCandidature } from "./BriefCandidature";
-import { AlertTriangle, Clock, Ban, Edit, Trash2 } from "lucide-react";
+import { AlertTriangle, Clock, Ban, Edit, Trash2, Zap, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ApplicationCardProps {
   application: Application;
@@ -17,6 +20,7 @@ interface ApplicationCardProps {
 
 export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: ApplicationCardProps) {
   const navigate = useNavigate();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Logique Coaching (Une seule bannière)
   const getCoachingBanner = () => {
@@ -51,6 +55,59 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
     onUpdate(updates);
   };
 
+  const handleAnalyzeOffer = async () => {
+    setIsAnalyzing(true);
+    try {
+      // Construire la description de l'offre à partir des données existantes
+      const jobDescription = `
+        Poste: ${application.poste}
+        Entreprise: ${application.entreprise}
+        Lieu: ${application.lieu}
+        ${application.keywords ? `Compétences: ${application.keywords}` : ''}
+        ${application.notes ? `Description: ${application.notes}` : ''}
+        ${application.url ? `URL: ${application.url}` : ''}
+      `.trim();
+
+      const { data, error } = await supabase.functions.invoke('analyze-job-offer', {
+        body: { jobDescription }
+      });
+
+      if (error) throw error;
+
+      if (data) {
+        // Mettre à jour l'application avec les résultats de l'analyse
+        const updates: Partial<Application> = {};
+        
+        if (data.deadline) updates.deadline = data.deadline;
+        if (data.applicationEmail) updates.applicationEmail = data.applicationEmail;
+        if (data.applicationInstructions) updates.applicationInstructions = data.applicationInstructions;
+        if (data.requiredDocuments) updates.requiredDocuments = data.requiredDocuments;
+        if (data.compatibility !== undefined) updates.compatibility = data.compatibility;
+        if (data.matchingSkills) updates.matchingSkills = data.matchingSkills;
+        if (data.missingRequirements) updates.missingRequirements = data.missingRequirements;
+        if (data.keywords) updates.keywords = data.keywords;
+        if (data.recommended_channel) updates.recommended_channel = data.recommended_channel;
+        if (data.ats_compliant !== undefined) updates.ats_compliant = data.ats_compliant;
+        if (data.excluded !== undefined) {
+          updates.excluded = data.excluded;
+          updates.exclusion_reason = data.exclusion_reason;
+        }
+
+        onUpdate(updates);
+        toast.success("Analyse IA terminée !", {
+          description: `Compatibilité: ${data.compatibility || 'N/A'}%`
+        });
+      }
+    } catch (error) {
+      console.error('Erreur analyse IA:', error);
+      toast.error("Erreur lors de l'analyse", {
+        description: "Vérifiez votre connexion et réessayez."
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
     <Card className="p-6 mb-4 hover:shadow-lg transition-all border-l-4 border-l-primary">
       {/* HEADER */}
@@ -82,8 +139,28 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
         {/* Intégration du composant Brief existant */}
         <BriefCandidature application={application} onUpdate={handleBriefUpdate} />
 
-        {/* BOUTON GÉNÉRATEUR CV */}
+        {/* BOUTONS D'ACTION */}
         <div className="mt-6 flex flex-wrap justify-end gap-3">
+          {/* Bouton Analyse IA */}
+          <Button 
+            variant="secondary"
+            onClick={handleAnalyzeOffer}
+            disabled={isAnalyzing}
+            className="gap-2"
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analyse en cours...
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4" />
+                Analyser l'offre (IA)
+              </>
+            )}
+          </Button>
+
           <Button 
             variant="outline" 
             onClick={() => navigate(`/generate/${application.id}`)}

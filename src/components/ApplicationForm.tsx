@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Application, ApplicationStatus, ApplicationType } from '@/types/application';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,22 +23,31 @@ const TYPE_OPTIONS: { value: ApplicationType; label: string; description: string
   { value: 'recommandée', label: 'Candidature recommandée', description: 'Via un contact ou réseau' }
 ];
 
+const getDefaultFormData = (application?: Application): Partial<Application> => ({
+  entreprise: application?.entreprise || '',
+  poste: application?.poste || '',
+  lieu: application?.lieu || '',
+  deadline: application?.deadline ? application.deadline.split('T')[0] : '',
+  statut: application?.statut || 'à compléter',
+  priorite: application?.priorite || 5,
+  keywords: application?.keywords || '',
+  notes: application?.notes || '',
+  url: application?.url || '',
+  type: application?.type || 'standard',
+  referent: application?.referent || '',
+  applicationEmail: application?.applicationEmail || '',
+  applicationInstructions: application?.applicationInstructions || ''
+});
+
 export function ApplicationForm({ application, open, onClose, onSave, isNewOffer }: ApplicationFormProps) {
-  const [formData, setFormData] = useState<Partial<Application>>(
-    application || {
-      entreprise: '',
-      poste: '',
-      lieu: '',
-      deadline: '',
-      statut: 'à compléter',
-      priorite: 5,
-      keywords: '',
-      notes: '',
-      url: '',
-      type: 'standard',
-      referent: ''
+  const [formData, setFormData] = useState<Partial<Application>>(getDefaultFormData(application));
+
+  // CRITICAL FIX: Resync form data when application prop changes
+  useEffect(() => {
+    if (open) {
+      setFormData(getDefaultFormData(application));
     }
-  );
+  }, [application, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,9 +65,20 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
       url: formData.url,
       type: formData.type || 'standard',
       referent: formData.referent,
+      applicationEmail: formData.applicationEmail,
+      applicationInstructions: formData.applicationInstructions,
       contacts: application?.contacts || [],
       actions: application?.actions || [],
       createdAt: application?.createdAt || new Date().toISOString(),
+      // Preserve analysis data
+      compatibility: application?.compatibility,
+      matchingSkills: application?.matchingSkills,
+      missingRequirements: application?.missingRequirements,
+      requiredDocuments: application?.requiredDocuments,
+      recommended_channel: application?.recommended_channel,
+      ats_compliant: application?.ats_compliant,
+      excluded: application?.excluded,
+      exclusion_reason: application?.exclusion_reason,
     };
 
     onSave(newApplication);
@@ -193,6 +213,28 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
               onChange={(e) => setFormData({ ...formData, url: e.target.value })}
               placeholder="https://..."
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="applicationEmail">Email de candidature</Label>
+              <Input
+                id="applicationEmail"
+                type="email"
+                value={formData.applicationEmail}
+                onChange={(e) => setFormData({ ...formData, applicationEmail: e.target.value })}
+                placeholder="recrutement@entreprise.ch"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="applicationInstructions">Instructions</Label>
+              <Input
+                id="applicationInstructions"
+                value={formData.applicationInstructions}
+                onChange={(e) => setFormData({ ...formData, applicationInstructions: e.target.value })}
+                placeholder="Ex: Référence à mentionner..."
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
