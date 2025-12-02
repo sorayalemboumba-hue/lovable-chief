@@ -2,7 +2,7 @@ import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList, AlertTriangle, CheckCircle2, Target, ChevronDown, ChevronUp, Zap, Ban } from 'lucide-react';
+import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList, CheckCircle2, Target, ChevronDown, ChevronUp, Zap, Ban, RefreshCw, Loader2 } from 'lucide-react';
 import { formatDate, getDaysUntil, isOverdue, isUrgent } from '@/lib/dateUtils';
 import { downloadIcs } from '@/lib/icsExport';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +10,7 @@ import { CompatibilityBadge } from './CompatibilityBadge';
 import { ApplicationChecklist } from './ApplicationChecklist';
 import { ApplicationWorkflow } from './ApplicationWorkflow';
 import { toast } from 'sonner';
-import { useState, memo } from 'react';
+import { useState, memo, useCallback } from 'react';
 
 interface ApplicationCardProps {
   application: Application;
@@ -33,61 +33,110 @@ export const ApplicationCard = memo(function ApplicationCard({ application, onEd
   const urgent = isUrgent(application.deadline);
   const overdue = isOverdue(application.deadline);
   const [showWorkflow, setShowWorkflow] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
 
-  // Coaching banners basés sur l'analyse IA
-  const getCoachingBanners = (): Array<{ message: string; icon: any; color: 'destructive' | 'warning' | 'success' | 'accent' }> => {
-    const banners: Array<{ message: string; icon: any; color: 'destructive' | 'warning' | 'success' | 'accent' }> = [];
-    const compatibility = application.compatibility || 0;
+  // Relancer l'analyse IA
+  const handleReanalyze = useCallback(async () => {
+    if (!onUpdate) return;
     
-    // PRIORITÉ 1: Offre exclue (Critères)
+    try {
+      setAnalyzing(true);
+      
+      const userProfile = `Profil professionnel avec expérience en gestion et coordination.`;
+      const jobDescription = `${application.poste} chez ${application.entreprise}, ${application.lieu}. ${application.notes || ''}`;
+
+      const { data, error } = await supabase.functions.invoke('analyze-job-offer', {
+        body: { jobDescription, userProfile }
+      });
+
+      if (error) throw error;
+
+      onUpdate({
+        compatibility: data.compatibility,
+        matchingSkills: data.matching_skills,
+        missingRequirements: data.missing_requirements,
+        keywords: data.keywords,
+        recommended_channel: data.recommended_channel,
+        requiredDocuments: data.required_documents,
+        publicationDate: data.publication_date,
+        deadline: data.deadline,
+        urgent_no_deadline: data.urgent_no_deadline,
+        contacts: data.contacts,
+        excluded: data.excluded,
+        exclusion_reason: data.exclusion_reason,
+        applicationEmail: data.contacts?.[0]?.email,
+        applicationInstructions: data.reasoning
+      });
+
+      toast.success(`Analyse terminée: ${data.compatibility}% de compatibilité`);
+    } catch (error: any) {
+      console.error('Reanalysis error:', error);
+      if (error.message?.includes('Rate limit') || error.message?.includes('429')) {
+        toast.error('Trop de requêtes. Réessayez dans quelques instants.');
+      } else if (error.message?.includes('Crédits') || error.message?.includes('402')) {
+        toast.error('Crédits IA épuisés. Ajoutez des crédits dans Settings → Usage.');
+      } else {
+        toast.error('Erreur lors de l\'analyse');
+      }
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [application, onUpdate]);
+
+  // UN SEUL message de coaching selon priorité stricte
+  const getCoachingBanner = (): { message: string; icon: any; color: 'destructive' | 'warning' | 'success' | 'accent' } | null => {
+    const compatibility = application.compatibility || 0;
+    const isNotSubmitted = application.statut !== 'soumise' && application.statut !== 'entretien';
+    
+    // PRIORITÉ A: Offre exclue (absolue)
     if (application.excluded) {
-      banners.push({
+      return {
         message: `⛔ Offre exclue : ${application.exclusion_reason || 'Critères non remplis'}`,
         icon: Ban,
         color: 'destructive'
-      });
+      };
     }
     
-    // PRIORITÉ 2: Urgence deadline (urgent_no_deadline OU deadline ≤ 3 jours)
-    if ((application.urgent_no_deadline || (daysUntil <= 3 && daysUntil >= 0)) && application.statut !== 'soumise' && application.statut !== 'entretien') {
-      banners.push({
+    // PRIORITÉ B: Urgence deadline (urgent_no_deadline OU deadline ≤ 3 jours)
+    if (isNotSubmitted && (application.urgent_no_deadline || (daysUntil <= 3 && daysUntil >= 0))) {
+      return {
         message: '⚡ Plan J-3 : Bloquer 3x30min pour finaliser cette candidature',
         icon: Zap,
         color: 'destructive'
-      });
+      };
     }
     
-    // PRIORITÉ 3: Documents manquants
-    if (application.requiredDocuments && application.requiredDocuments.length > 0 && application.statut === 'à compléter') {
-      banners.push({
+    // PRIORITÉ C: Documents manquants
+    if (isNotSubmitted && application.requiredDocuments && application.requiredDocuments.length > 0 && application.statut === 'à compléter') {
+      return {
         message: `📝 Finaliser dossier : ${application.requiredDocuments.slice(0, 3).join(', ')}${application.requiredDocuments.length > 3 ? '...' : ''}`,
         icon: ClipboardList,
         color: 'warning'
-      });
+      };
     }
     
-    // PRIORITÉ 4: Compatibilité < 70%
-    if (compatibility > 0 && compatibility < 70 && !application.excluded) {
-      banners.push({
+    // PRIORITÉ D: Compatibilité < 70%
+    if (isNotSubmitted && compatibility > 0 && compatibility < 70) {
+      return {
         message: `🎯 Positionnement clair requis : valorisez vos compétences transférables (${compatibility}% match)`,
         icon: Target,
         color: 'warning'
-      });
+      };
     }
     
-    // Autres conseils contextuels
-    if (application.statut === 'soumise' && daysUntil > -3 && banners.length === 0) {
-      banners.push({
+    // Message positif si soumise
+    if (application.statut === 'soumise') {
+      return {
         message: '✅ Candidature soumise ! Préparez une relance dans 48-72h.',
         icon: CheckCircle2,
         color: 'success'
-      });
+      };
     }
     
-    return banners;
+    return null;
   };
 
-  const coachingBanners = getCoachingBanners();
+  const coachingBanner = getCoachingBanner();
 
   const handleViewOriginalOffer = async () => {
     if (!application.originalOfferUrl) {
@@ -142,6 +191,22 @@ export const ApplicationCard = memo(function ApplicationCard({ application, onEd
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-2 sm:gap-3 mb-3 flex-wrap">
             <h3 className="text-lg sm:text-xl font-semibold leading-tight flex-1 min-w-0">{application.poste}</h3>
+            {onUpdate && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleReanalyze}
+                disabled={analyzing}
+                title="Relancer l'analyse IA"
+                className="h-8 w-8"
+              >
+                {analyzing ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 text-primary" />
+                )}
+              </Button>
+            )}
             <CompatibilityBadge application={application} />
             {application.priorite >= 8 && (
               <Badge variant="destructive" className="text-xs font-bold">Priorité haute</Badge>
@@ -174,41 +239,38 @@ export const ApplicationCard = memo(function ApplicationCard({ application, onEd
         </div>
       )}
 
-      {/* Coaching Banners - IMMANQUABLES */}
-      {coachingBanners.length > 0 && (
-        <div className="mt-5 space-y-2">
-          {coachingBanners.map((banner, idx) => (
-            <div 
-              key={idx}
-              className={`p-4 rounded-lg border-2 ${
-                banner.color === 'destructive' ? 'bg-destructive/10 border-destructive/40 shadow-destructive/20 shadow-sm' :
-                banner.color === 'warning' ? 'bg-warning/10 border-warning/40' :
-                banner.color === 'success' ? 'bg-success/10 border-success/40' :
-                'bg-accent/10 border-accent/40'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${
-                  banner.color === 'destructive' ? 'bg-destructive/20' :
-                  banner.color === 'warning' ? 'bg-warning/20' :
-                  banner.color === 'success' ? 'bg-success/20' :
-                  'bg-accent/20'
-                }`}>
-                  <banner.icon className={`w-5 h-5 ${
-                    banner.color === 'destructive' ? 'text-destructive' :
-                    banner.color === 'warning' ? 'text-warning' :
-                    banner.color === 'success' ? 'text-success' :
-                    'text-accent'
-                  }`} />
-                </div>
-                <p className={`text-sm font-bold leading-relaxed flex-1 ${
-                  banner.color === 'destructive' ? 'text-destructive' : ''
-                }`}>
-                  {banner.message}
-                </p>
+      {/* Coaching Banner - UN SEUL message par priorité */}
+      {coachingBanner && (
+        <div className="mt-5">
+          <div 
+            className={`p-4 rounded-lg border-2 ${
+              coachingBanner.color === 'destructive' ? 'bg-destructive/10 border-destructive/40 shadow-destructive/20 shadow-sm' :
+              coachingBanner.color === 'warning' ? 'bg-warning/10 border-warning/40' :
+              coachingBanner.color === 'success' ? 'bg-success/10 border-success/40' :
+              'bg-accent/10 border-accent/40'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${
+                coachingBanner.color === 'destructive' ? 'bg-destructive/20' :
+                coachingBanner.color === 'warning' ? 'bg-warning/20' :
+                coachingBanner.color === 'success' ? 'bg-success/20' :
+                'bg-accent/20'
+              }`}>
+                <coachingBanner.icon className={`w-5 h-5 ${
+                  coachingBanner.color === 'destructive' ? 'text-destructive' :
+                  coachingBanner.color === 'warning' ? 'text-warning' :
+                  coachingBanner.color === 'success' ? 'text-success' :
+                  'text-accent'
+                }`} />
               </div>
+              <p className={`text-sm font-bold leading-relaxed flex-1 ${
+                coachingBanner.color === 'destructive' ? 'text-destructive' : ''
+              }`}>
+                {coachingBanner.message}
+              </p>
             </div>
-          ))}
+          </div>
         </div>
       )}
 
