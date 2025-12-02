@@ -2,7 +2,7 @@ import { Application } from '@/types/application';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList, AlertTriangle, CheckCircle2, Target, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, MapPin, Calendar, ExternalLink, Download, Edit, Trash2, FileText, Mail, Users, Sparkles, Eye, CalendarCheck, AtSign, ClipboardList, AlertTriangle, CheckCircle2, Target, ChevronDown, ChevronUp, Zap, Ban } from 'lucide-react';
 import { formatDate, getDaysUntil, isOverdue, isUrgent } from '@/lib/dateUtils';
 import { downloadIcs } from '@/lib/icsExport';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +10,7 @@ import { CompatibilityBadge } from './CompatibilityBadge';
 import { ApplicationChecklist } from './ApplicationChecklist';
 import { ApplicationWorkflow } from './ApplicationWorkflow';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, memo } from 'react';
 
 interface ApplicationCardProps {
   application: Application;
@@ -28,65 +28,66 @@ const STATUS_STYLES = {
   "entretien": "bg-accent/10 text-accent border-accent/20",
 };
 
-export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, onGenerateLetter, onUpdate }: ApplicationCardProps) {
+export const ApplicationCard = memo(function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, onGenerateLetter, onUpdate }: ApplicationCardProps) {
   const daysUntil = getDaysUntil(application.deadline);
   const urgent = isUrgent(application.deadline);
   const overdue = isOverdue(application.deadline);
+  const [showWorkflow, setShowWorkflow] = useState(false);
 
-  // Coaching contextuel basé sur des règles
-  const getContextualCoaching = (): { message: string; icon: any; color: string } | null => {
+  // Coaching banners basés sur l'analyse IA
+  const getCoachingBanners = (): Array<{ message: string; icon: any; color: 'destructive' | 'warning' | 'success' | 'accent' }> => {
+    const banners: Array<{ message: string; icon: any; color: 'destructive' | 'warning' | 'success' | 'accent' }> = [];
     const compatibility = application.compatibility || 0;
     
-    // Règle 1: Documents manquants (priorité haute)
+    // PRIORITÉ 1: Offre exclue (Critères)
+    if (application.excluded) {
+      banners.push({
+        message: `⛔ Offre exclue : ${application.exclusion_reason || 'Critères non remplis'}`,
+        icon: Ban,
+        color: 'destructive'
+      });
+    }
+    
+    // PRIORITÉ 2: Urgence deadline (urgent_no_deadline OU deadline ≤ 3 jours)
+    if ((application.urgent_no_deadline || (daysUntil <= 3 && daysUntil >= 0)) && application.statut !== 'soumise' && application.statut !== 'entretien') {
+      banners.push({
+        message: '⚡ Plan J-3 : Bloquer 3x30min pour finaliser cette candidature',
+        icon: Zap,
+        color: 'destructive'
+      });
+    }
+    
+    // PRIORITÉ 3: Documents manquants
     if (application.requiredDocuments && application.requiredDocuments.length > 0 && application.statut === 'à compléter') {
-      return {
-        message: `📋 Documents requis : ${application.requiredDocuments.join(', ')}. Préparez-les avant la deadline.`,
+      banners.push({
+        message: `📝 Finaliser dossier : ${application.requiredDocuments.slice(0, 3).join(', ')}${application.requiredDocuments.length > 3 ? '...' : ''}`,
         icon: ClipboardList,
         color: 'warning'
-      };
+      });
     }
     
-    // Règle 2: Deadline ≤ 3 jours
-    if (daysUntil <= 3 && daysUntil >= 0 && application.statut !== 'soumise' && application.statut !== 'entretien') {
-      return {
-        message: `⏰ Deadline dans ${daysUntil}j ! Priorisez cette candidature et finalisez vos documents.`,
-        icon: AlertTriangle,
-        color: 'destructive'
-      };
-    }
-    
-    // Règle 3: Statut "à compléter"
-    if (application.statut === 'à compléter') {
-      return {
-        message: '✏️ Candidature à compléter : générez votre CV et lettre personnalisés, puis passez en "en cours".',
+    // PRIORITÉ 4: Compatibilité < 70%
+    if (compatibility > 0 && compatibility < 70 && !application.excluded) {
+      banners.push({
+        message: `🎯 Positionnement clair requis : valorisez vos compétences transférables (${compatibility}% match)`,
         icon: Target,
         color: 'warning'
-      };
+      });
     }
     
-    // Règle 4: Statut "soumise"
-    if (application.statut === 'soumise' && daysUntil > -3) {
-      return {
-        message: '✅ Candidature soumise ! Préparez une relance dans 48-72h avec un message de valeur ajoutée.',
+    // Autres conseils contextuels
+    if (application.statut === 'soumise' && daysUntil > -3 && banners.length === 0) {
+      banners.push({
+        message: '✅ Candidature soumise ! Préparez une relance dans 48-72h.',
         icon: CheckCircle2,
         color: 'success'
-      };
+      });
     }
     
-    // Règle 5: Compatibilité < 70%
-    if (compatibility > 0 && compatibility < 70) {
-      return {
-        message: `💡 Compatibilité ${compatibility}% : mettez en avant vos compétences transférables et votre motivation.`,
-        icon: Sparkles,
-        color: 'accent'
-      };
-    }
-    
-    return null;
+    return banners;
   };
 
-  const contextualCoaching = getContextualCoaching();
-  const [showWorkflow, setShowWorkflow] = useState(false);
+  const coachingBanners = getCoachingBanners();
 
   const handleViewOriginalOffer = async () => {
     if (!application.originalOfferUrl) {
@@ -173,30 +174,41 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
         </div>
       )}
 
-      {/* Coaching contextuel */}
-      {contextualCoaching && (
-        <div className={`mt-5 p-4 rounded-lg border-2 ${
-          contextualCoaching.color === 'destructive' ? 'bg-destructive/5 border-destructive/20' :
-          contextualCoaching.color === 'warning' ? 'bg-warning/5 border-warning/20' :
-          contextualCoaching.color === 'success' ? 'bg-success/5 border-success/20' :
-          'bg-accent/5 border-accent/20'
-        }`}>
-          <div className="flex items-start gap-3">
-            <div className={`p-2 rounded-lg ${
-              contextualCoaching.color === 'destructive' ? 'bg-destructive/10' :
-              contextualCoaching.color === 'warning' ? 'bg-warning/10' :
-              contextualCoaching.color === 'success' ? 'bg-success/10' :
-              'bg-accent/10'
-            }`}>
-              <contextualCoaching.icon className={`w-5 h-5 ${
-                contextualCoaching.color === 'destructive' ? 'text-destructive' :
-                contextualCoaching.color === 'warning' ? 'text-warning' :
-                contextualCoaching.color === 'success' ? 'text-success' :
-                'text-accent'
-              }`} />
+      {/* Coaching Banners - IMMANQUABLES */}
+      {coachingBanners.length > 0 && (
+        <div className="mt-5 space-y-2">
+          {coachingBanners.map((banner, idx) => (
+            <div 
+              key={idx}
+              className={`p-4 rounded-lg border-2 ${
+                banner.color === 'destructive' ? 'bg-destructive/10 border-destructive/40 shadow-destructive/20 shadow-sm' :
+                banner.color === 'warning' ? 'bg-warning/10 border-warning/40' :
+                banner.color === 'success' ? 'bg-success/10 border-success/40' :
+                'bg-accent/10 border-accent/40'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${
+                  banner.color === 'destructive' ? 'bg-destructive/20' :
+                  banner.color === 'warning' ? 'bg-warning/20' :
+                  banner.color === 'success' ? 'bg-success/20' :
+                  'bg-accent/20'
+                }`}>
+                  <banner.icon className={`w-5 h-5 ${
+                    banner.color === 'destructive' ? 'text-destructive' :
+                    banner.color === 'warning' ? 'text-warning' :
+                    banner.color === 'success' ? 'text-success' :
+                    'text-accent'
+                  }`} />
+                </div>
+                <p className={`text-sm font-bold leading-relaxed flex-1 ${
+                  banner.color === 'destructive' ? 'text-destructive' : ''
+                }`}>
+                  {banner.message}
+                </p>
+              </div>
             </div>
-            <p className="text-sm font-medium leading-relaxed flex-1">{contextualCoaching.message}</p>
-          </div>
+          ))}
         </div>
       )}
 
@@ -375,4 +387,4 @@ export function ApplicationCard({ application, onEdit, onDelete, onGenerateCV, o
       </div>
     </Card>
   );
-}
+});
