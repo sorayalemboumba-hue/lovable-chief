@@ -274,7 +274,7 @@ export const ApplicationCard = memo(function ApplicationCard({ application, onEd
         </div>
       )}
 
-      {/* Workflow Toggle & Display */}
+      {/* Brief Candidature */}
       {onUpdate && (
         <div className="mt-5">
           <Button
@@ -284,7 +284,7 @@ export const ApplicationCard = memo(function ApplicationCard({ application, onEd
             className="w-full gap-2 mb-3"
           >
             {showWorkflow ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {showWorkflow ? 'Masquer' : 'Afficher'} la marche à suivre
+            {showWorkflow ? 'Masquer' : 'Afficher'} le brief candidature
           </Button>
           {showWorkflow && (
             <ApplicationWorkflow application={application} onUpdate={onUpdate} />
