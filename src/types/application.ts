@@ -30,6 +30,9 @@ export interface Application {
   is_complete?: boolean;
   recommended_channel?: string;
   ats_compliant?: boolean;
+  urgent_no_deadline?: boolean;
+  excluded?: boolean;
+  exclusion_reason?: string;
 }
 
 export interface Contact {
