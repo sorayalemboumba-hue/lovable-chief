@@ -2,10 +2,13 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import { Application } from "@/types/application";
 import { BriefCandidature } from "./BriefCandidature";
-import { AlertTriangle, Clock, Ban, Edit, Trash2, Zap, Loader2 } from "lucide-react";
+import { AlertTriangle, Clock, Ban, Edit, Trash2, Zap, Loader2, ExternalLink, Calendar } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,6 +25,16 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
   const navigate = useNavigate();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // Calcul des jours jusqu'à la deadline
+  const daysUntil = application.deadline 
+    ? Math.ceil((new Date(application.deadline).getTime() - Date.now()) / 86400000) 
+    : null;
+
+  // Formatage de la date limite
+  const formattedDeadline = application.deadline 
+    ? format(new Date(application.deadline), "d MMM yyyy", { locale: fr })
+    : "Date inconnue";
+
   // Logique Coaching (Une seule bannière)
   const getCoachingBanner = () => {
     if (application.excluded) {
@@ -31,10 +44,7 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
         </div>
       );
     }
-    const daysUntil = application.deadline 
-      ? Math.ceil((new Date(application.deadline).getTime() - Date.now()) / 86400000) 
-      : 10;
-    if (daysUntil <= 3 && daysUntil >= 0) {
+    if (daysUntil !== null && daysUntil <= 3 && daysUntil >= 0) {
       return (
         <div className="bg-orange-100 p-3 rounded-md flex items-center gap-2 text-orange-800 font-bold mb-4">
           <Clock className="w-5 h-5" /> ⚡ PLAN J-{daysUntil} : Bloquer 3x30min pour finaliser !
@@ -109,25 +119,58 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
   };
 
   return (
-    <Card className="p-6 mb-4 hover:shadow-lg transition-all border-l-4 border-l-primary">
-      {/* HEADER */}
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="text-xl font-bold text-foreground">{application.poste}</h3>
-          <p className="text-muted-foreground font-medium">{application.entreprise} • {application.lieu}</p>
+    <TooltipProvider>
+      <Card className="p-6 mb-4 hover:shadow-lg transition-all border-l-4 border-l-primary">
+        {/* HEADER */}
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-foreground">{application.poste}</h3>
+            <p className="text-muted-foreground font-medium">{application.entreprise} • {application.lieu}</p>
+            
+            {/* DATE & LIEN ORIGINE */}
+            <div className="flex items-center gap-3 mt-2">
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Calendar className="w-4 h-4" />
+                <span>{formattedDeadline}</span>
+                {daysUntil !== null && daysUntil >= 0 && daysUntil <= 7 && (
+                  <Badge variant="outline" className="ml-1 text-orange-600 border-orange-300">
+                    J-{daysUntil}
+                  </Badge>
+                )}
+              </div>
+              
+              {(application.originalOfferUrl || application.url) && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-7 w-7"
+                      onClick={() => window.open(application.originalOfferUrl || application.url, '_blank')}
+                    >
+                      <ExternalLink className="w-4 h-4 text-primary" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Voir l'annonce originale</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Badge variant={application.statut === 'soumise' ? "default" : "outline"} className="text-sm">
+              {application.statut.toUpperCase()}
+            </Badge>
+            <Button variant="ghost" size="icon" onClick={onEdit} title="Modifier">
+              <Edit className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onDelete} title="Supprimer">
+              <Trash2 className="w-4 h-4 text-destructive" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={application.statut === 'soumise' ? "default" : "outline"} className="text-sm">
-            {application.statut.toUpperCase()}
-          </Badge>
-          <Button variant="ghost" size="icon" onClick={onEdit} title="Modifier">
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onDelete} title="Supprimer">
-            <Trash2 className="w-4 h-4 text-destructive" />
-          </Button>
-        </div>
-      </div>
 
       {/* BANNIÈRE COACHING */}
       {getCoachingBanner()}
@@ -173,6 +216,7 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
           </Button>
         </div>
       </div>
-    </Card>
+      </Card>
+    </TooltipProvider>
   );
 }
