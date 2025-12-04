@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Application } from '@/types/application';
 import { useLocalApplications } from '@/hooks/useLocalApplications';
 import { usePersonalTasks } from '@/hooks/usePersonalTasks';
+import { useAutoSave } from '@/hooks/useAutoSave';
 import { DashboardStats, ApplicationList } from '@/components/dashboard';
 import { ApplicationCard } from '@/components/ApplicationCard';
 import { ApplicationForm } from '@/components/ApplicationForm';
@@ -29,7 +30,16 @@ import { COACHING_LIBRARY } from '@/data/coaching';
 const Index = () => {
   const navigate = useNavigate();
   const { applications, loading, addApplication, updateApplication, deleteApplication, importApplications, refetch } = useLocalApplications();
-  const { tasks: personalTasks, addTask: addPersonalTask, toggleTask: togglePersonalTask, deleteTask: deletePersonalTask } = usePersonalTasks();
+  const { tasks: personalTasks, addTask: addPersonalTask, toggleTask: togglePersonalTask, deleteTask: deletePersonalTask, updateTask: updatePersonalTask } = usePersonalTasks();
+  
+  // Auto-save hook
+  const { formattedLastSave, triggerSave } = useAutoSave({
+    interval: 30000, // 30 secondes
+    onSave: () => {
+      // Les données sont déjà sauvegardées par les hooks individuels
+      // Ce hook sert juste à tracker la dernière sauvegarde
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApplication, setEditingApplication] = useState<Application | undefined>();
@@ -499,6 +509,7 @@ const Index = () => {
             onAddTask={addPersonalTask}
             onToggleTask={togglePersonalTask}
             onDeleteTask={deletePersonalTask}
+            onUpdateTask={updatePersonalTask}
           />
         )}
 
@@ -550,6 +561,12 @@ const Index = () => {
         open={isDataManagerOpen}
         onClose={() => setIsDataManagerOpen(false)}
       />
+      {/* Auto-save indicator */}
+      {formattedLastSave && (
+        <div className="fixed bottom-4 right-4 bg-muted/90 backdrop-blur-sm text-muted-foreground text-xs px-3 py-1.5 rounded-full shadow-sm border">
+          💾 Dernière sauvegarde : {formattedLastSave}
+        </div>
+      )}
     </div>
   );
 };
