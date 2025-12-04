@@ -46,11 +46,13 @@ interface AnalysisResult {
     excluded: boolean;
     exclusionReason: string | null;
     reasoning: string;
+    warning?: string; // For extraction failures
   } | null;
   exclusionFlags: ExclusionFlags;
   isExcluded: boolean;
   exclusionReason: string;
   isAnalyzing: boolean;
+  extractionFailed?: boolean; // Flag for manual fallback
 }
 
 type ImportStep = 'input' | 'analysis' | 'review';
@@ -142,11 +144,17 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
         
         if (error) throw error;
         
+        // Check for warning (graceful degradation)
+        const hasWarning = data.warning;
+        if (hasWarning) {
+          console.log('AI analysis warning:', data.warning);
+        }
+        
         setAnalysisResults(prev => prev.map((r, idx) => 
           idx === i ? {
             ...r,
             aiAnalysis: {
-              compatibility: data.compatibility || 0,
+              compatibility: data.compatibility || 50,
               matchingSkills: data.matching_skills || [],
               missingRequirements: data.missing_requirements || [],
               keywords: data.keywords || '',
@@ -156,18 +164,45 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
               contacts: data.contacts || [],
               excluded: data.excluded || false,
               exclusionReason: data.exclusion_reason,
-              reasoning: data.reasoning || ''
+              reasoning: data.reasoning || '',
+              warning: data.warning
             },
             isExcluded: data.excluded || r.isExcluded,
             exclusionReason: data.exclusion_reason || r.exclusionReason,
-            isAnalyzing: false
+            isAnalyzing: false,
+            extractionFailed: data.warning === 'extraction_failed'
           } : r
         ));
+        
+        // Show toast for warnings
+        if (hasWarning) {
+          toast.warning('⚠️ Analyse partielle. Vérifiez les informations.', { duration: 4000 });
+        }
       } catch (error) {
         console.error('Analysis error:', error);
+        // Don't fail completely - mark as needing manual review
         setAnalysisResults(prev => prev.map((r, idx) => 
-          idx === i ? { ...r, isAnalyzing: false } : r
+          idx === i ? { 
+            ...r, 
+            isAnalyzing: false,
+            aiAnalysis: {
+              compatibility: 50,
+              matchingSkills: [],
+              missingRequirements: [],
+              keywords: '',
+              recommendedChannel: 'direct',
+              requiredDocuments: ['CV', 'Lettre de motivation'],
+              deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              contacts: [],
+              excluded: false,
+              exclusionReason: null,
+              reasoning: '⚠️ Analyse IA indisponible. Complétez manuellement.',
+              warning: 'analysis_error'
+            },
+            extractionFailed: true
+          } : r
         ));
+        toast.warning('Analyse IA indisponible. Import manuel possible.', { duration: 4000 });
       }
     }
     
@@ -225,7 +260,7 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
     }
   };
 
-  // Handle PDF upload
+  // Handle PDF upload with fallback
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target?.files?.[0];
     if (!file || file.type !== 'application/pdf') {
@@ -243,11 +278,88 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
       if (job) {
         handleAnalyze([job]);
       } else {
-        toast.error('Impossible d\'analyser le PDF');
+        // FALLBACK MODE: Create draft with file name
+        toast.warning('⚠️ PDF complexe non lu. Mode manuel activé.', { duration: 5000 });
+        
+        const fallbackJob: ExtendedParsedJob = {
+          entreprise: 'À compléter',
+          poste: file.name.replace('.pdf', '').substring(0, 50),
+          lieu: 'Suisse',
+          canal: 'PDF',
+          source: 'PDF (extraction manuelle)',
+          motsCles: '',
+          description: '⚠️ Le texte du PDF n\'a pas pu être extrait automatiquement. Veuillez copier-coller la description du poste dans les notes.'
+        };
+        
+        // Go directly to review with extraction failed flag
+        handleAnalyzeWithFallback([fallbackJob], true);
       }
     } catch (error) {
       toast.dismiss('pdf-parse');
-      toast.error('Erreur lors de l\'analyse du PDF');
+      console.error('PDF parsing error:', error);
+      
+      // FALLBACK MODE on error
+      toast.warning('⚠️ Erreur PDF. Mode manuel activé.', { duration: 5000 });
+      
+      const fallbackJob: ExtendedParsedJob = {
+        entreprise: 'À compléter',
+        poste: file?.name?.replace('.pdf', '').substring(0, 50) || 'Poste à définir',
+        lieu: 'Suisse',
+        canal: 'PDF',
+        source: 'PDF (extraction manuelle)',
+        motsCles: '',
+        description: '⚠️ Le texte du PDF n\'a pas pu être extrait. Veuillez copier-coller la description du poste.'
+      };
+      
+      handleAnalyzeWithFallback([fallbackJob], true);
+    }
+  };
+
+  // Handle analysis with fallback mode (skip AI when extraction failed)
+  const handleAnalyzeWithFallback = async (jobs: ExtendedParsedJob[], extractionFailed: boolean) => {
+    if (jobs.length === 0) {
+      toast.error('Aucune offre détectée');
+      return;
+    }
+
+    const today = new Date();
+    const defaultDeadline = new Date(today);
+    defaultDeadline.setDate(today.getDate() + 7);
+
+    // Create results with fallback analysis
+    const fallbackResults: AnalysisResult[] = jobs.map(job => {
+      const flags = evaluateExclusionRules(job.poste, job.lieu, job.motsCles);
+      return {
+        job,
+        aiAnalysis: {
+          compatibility: 50,
+          matchingSkills: [],
+          missingRequirements: [],
+          keywords: '',
+          recommendedChannel: 'direct',
+          requiredDocuments: ['CV', 'Lettre de motivation'],
+          deadline: defaultDeadline.toISOString().split('T')[0],
+          contacts: [],
+          excluded: false,
+          exclusionReason: null,
+          reasoning: extractionFailed 
+            ? '⚠️ Extraction PDF impossible. Complétez manuellement.' 
+            : 'Analyse de base.',
+          warning: extractionFailed ? 'extraction_failed' : undefined
+        },
+        exclusionFlags: flags,
+        isExcluded: false,
+        exclusionReason: '',
+        isAnalyzing: false,
+        extractionFailed
+      };
+    });
+
+    setAnalysisResults(fallbackResults);
+    setStep('review');
+    
+    if (extractionFailed) {
+      toast.info('📝 Importez l\'offre puis éditez-la pour ajouter les détails.', { duration: 6000 });
     }
   };
 
@@ -582,7 +694,17 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
               ) : (
                 <div className="space-y-4 py-4">
                   {analysisResults.map((result, index) => (
-                    <Card key={index} className={`p-5 ${result.isExcluded ? 'border-destructive/50 bg-destructive/5' : 'border-primary/30'}`}>
+                    <Card key={index} className={`p-5 ${result.isExcluded ? 'border-destructive/50 bg-destructive/5' : result.extractionFailed ? 'border-orange-500/50 bg-orange-50' : 'border-primary/30'}`}>
+                      {/* Extraction warning banner */}
+                      {result.extractionFailed && (
+                        <div className="mb-3 p-2 bg-orange-100 rounded-lg border border-orange-300">
+                          <p className="font-medium text-orange-800 flex items-center gap-2 text-sm">
+                            <AlertTriangle className="w-4 h-4" />
+                            PDF complexe - Complétez manuellement après import
+                          </p>
+                        </div>
+                      )}
+                      
                       {/* Header */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1 min-w-0">
@@ -600,12 +722,16 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
                           <Badge variant="secondary" className="gap-1 shrink-0 ml-2">
                             <Loader2 className="w-3 h-3 animate-spin" /> Analyse...
                           </Badge>
+                        ) : result.extractionFailed ? (
+                          <Badge variant="outline" className="gap-1 shrink-0 ml-2 border-orange-500 text-orange-700">
+                            <AlertTriangle className="w-3 h-3" /> Manuel
+                          </Badge>
                         ) : result.isExcluded ? (
                           <Badge variant="destructive" className="gap-1 shrink-0 ml-2">
                             <XCircle className="w-3 h-3" /> Exclue
                           </Badge>
                         ) : (
-                          <Badge 
+                          <Badge
                             variant={result.aiAnalysis?.compatibility && result.aiAnalysis.compatibility >= 70 ? "default" : "secondary"}
                             className="gap-1 text-sm px-2 shrink-0 ml-2"
                           >
