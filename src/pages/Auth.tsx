@@ -15,6 +15,7 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
+  const [technicalError, setTechnicalError] = useState<string | null>(null);
 
   // Check if already logged in
   useEffect(() => {
@@ -27,6 +28,7 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTechnicalError(null);
     
     if (!email || !password) {
       toast.error('Veuillez remplir tous les champs');
@@ -48,17 +50,17 @@ export default function Auth() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        setTechnicalError(`[${error.status || 'N/A'}] ${error.message}`);
+        throw error;
+      }
 
       toast.success('Inscription réussie ! Vous pouvez maintenant vous connecter.');
-      setActiveTab('signin'); // Switch to signin tab
+      setTechnicalError(null);
+      setActiveTab('signin');
     } catch (error: any) {
       console.error('Signup error:', error);
-      if (error.message.includes('already registered')) {
-        toast.error('Cet email est déjà utilisé');
-      } else {
-        toast.error('Erreur lors de l\'inscription');
-      }
+      toast.error('Erreur lors de l\'inscription - voir détails ci-dessous');
     } finally {
       setLoading(false);
     }
@@ -198,6 +200,13 @@ export default function Auth() {
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     S'inscrire
                   </Button>
+                  {technicalError && (
+                    <div className="mt-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md">
+                      <p className="text-xs font-mono text-destructive break-all">
+                        <strong>Erreur technique:</strong> {technicalError}
+                      </p>
+                    </div>
+                  )}
                 </form>
               </CardContent>
             </Card>
