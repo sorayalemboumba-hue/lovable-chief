@@ -5,9 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import CVGenerator from "./pages/CVGenerator";
-import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -18,22 +16,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Index />
-            </ProtectedRoute>
-          } />
-          <Route path="/generate/:id" element={
-            <ProtectedRoute>
-              <CVGenerator />
-            </ProtectedRoute>
-          } />
-          <Route path="/generate" element={
-            <ProtectedRoute>
-              <CVGenerator />
-            </ProtectedRoute>
-          } />
+          <Route path="/" element={<Index />} />
+          <Route path="/generate/:id" element={<CVGenerator />} />
+          <Route path="/generate" element={<CVGenerator />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
