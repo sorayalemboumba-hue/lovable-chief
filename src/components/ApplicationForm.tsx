@@ -20,7 +20,8 @@ const STATUS_OPTIONS: ApplicationStatus[] = ["à compléter", "en cours", "soumi
 const TYPE_OPTIONS: { value: ApplicationType; label: string; description: string }[] = [
   { value: 'standard', label: 'Candidature standard', description: 'Réponse à une offre publique' },
   { value: 'spontanée', label: 'Candidature spontanée', description: 'Initiative personnelle sans offre' },
-  { value: 'recommandée', label: 'Candidature recommandée', description: 'Via un contact ou réseau' }
+  { value: 'recommandée', label: 'Candidature recommandée', description: 'Via un contact ou réseau' },
+  { value: 'oce', label: '🏛️ Candidature OCE / ORP', description: 'Assignation Office cantonal de l\'emploi (preuve requise)' }
 ];
 
 const getDefaultFormData = (application?: Application): Partial<Application> => ({
@@ -52,6 +53,16 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // OCE logic: force priority to 1 and add note
+    const isOCE = formData.type === 'oce';
+    const priority = isOCE ? 1 : (formData.priorite || 5);
+    let notes = formData.notes || '';
+    
+    // Add OCE warning to notes if not already present
+    if (isOCE && !notes.includes('OFFRE OCE')) {
+      notes = `⚠️ OFFRE OCE - Preuve de candidature requise pour validation ORP\n\n${notes}`.trim();
+    }
+    
     const newApplication: Application = {
       id: application?.id || Math.random().toString(36).slice(2, 10),
       entreprise: formData.entreprise || '',
@@ -59,9 +70,9 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
       lieu: formData.lieu || '',
       deadline: formData.deadline || '',
       statut: formData.statut || 'à compléter',
-      priorite: formData.priorite || 5,
+      priorite: priority,
       keywords: formData.keywords,
-      notes: formData.notes,
+      notes,
       url: formData.url,
       type: formData.type || 'standard',
       referent: formData.referent,
@@ -74,8 +85,8 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
       compatibility: application?.compatibility,
       matchingSkills: application?.matchingSkills,
       missingRequirements: application?.missingRequirements,
-      requiredDocuments: application?.requiredDocuments,
-      recommended_channel: application?.recommended_channel,
+      requiredDocuments: isOCE ? ['CV', 'Lettre de motivation', 'Preuve de candidature'] : application?.requiredDocuments,
+      recommended_channel: isOCE ? 'OCE' : application?.recommended_channel,
       ats_compliant: application?.ats_compliant,
       excluded: application?.excluded,
       exclusion_reason: application?.exclusion_reason,
@@ -169,6 +180,14 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
                 />
               </div>
             )}
+            
+            {formData.type === 'oce' && (
+              <div className="mt-3 pt-3 border-t bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md">
+                <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+                  ⚠️ Priorité forcée à URGENT (1) • Preuve de candidature ajoutée automatiquement
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -192,14 +211,18 @@ export function ApplicationForm({ application, open, onClose, onSave, isNewOffer
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="priorite">Priorité (1-10)</Label>
+              <Label htmlFor="priorite">
+                Priorité (1-10) {formData.type === 'oce' && <span className="text-amber-600">(forcée)</span>}
+              </Label>
               <Input
                 id="priorite"
                 type="number"
                 min="1"
                 max="10"
-                value={formData.priorite}
+                value={formData.type === 'oce' ? 1 : formData.priorite}
                 onChange={(e) => setFormData({ ...formData, priorite: parseInt(e.target.value) })}
+                disabled={formData.type === 'oce'}
+                className={formData.type === 'oce' ? 'bg-muted' : ''}
               />
             </div>
           </div>

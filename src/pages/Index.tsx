@@ -70,14 +70,35 @@ const Index = () => {
     filteredCandidatures: applyFilters(candidatures)
   }), [offres, candidatures, applyFilters]);
 
-  // Memoized: Sorted applications for dashboard (recalcule ONLY when dependencies change)
+  // Memoized: Sorted applications for dashboard - DEADLINE PRIORITY
+  // Order: 1) Applications with deadline (chronological ascending - closest first)
+  //        2) Applications without deadline (by creation date descending)
   const sortedApplications = useMemo(() => {
     const filtered = applications.filter(app => 
       app.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.poste.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.lieu.toLowerCase().includes(searchQuery.toLowerCase())
     );
-    return sortByPriority(filtered);
+    
+    return [...filtered].sort((a, b) => {
+      const now = new Date();
+      const deadlineA = a.deadline ? new Date(a.deadline) : null;
+      const deadlineB = b.deadline ? new Date(b.deadline) : null;
+      
+      // Both have deadlines: sort by deadline ascending (closest first)
+      if (deadlineA && deadlineB) {
+        return deadlineA.getTime() - deadlineB.getTime();
+      }
+      
+      // Only A has deadline: A comes first
+      if (deadlineA && !deadlineB) return -1;
+      
+      // Only B has deadline: B comes first
+      if (!deadlineA && deadlineB) return 1;
+      
+      // Neither has deadline: sort by creation date descending (most recent first)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
   }, [applications, searchQuery]);
 
   // Memoized: Sorted offres list

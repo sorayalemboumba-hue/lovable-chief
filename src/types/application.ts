@@ -1,5 +1,5 @@
 export type ApplicationStatus = "à compléter" | "en cours" | "soumise" | "entretien";
-export type ApplicationType = "standard" | "spontanée" | "recommandée";
+export type ApplicationType = "standard" | "spontanée" | "recommandée" | "oce";
 
 export interface Application {
   id: string;

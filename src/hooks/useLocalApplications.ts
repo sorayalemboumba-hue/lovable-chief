@@ -22,6 +22,23 @@ export function useLocalApplications() {
   }, [applications, loading]);
 
   const addApplication = async (application: Omit<Application, 'id' | 'createdAt'>): Promise<string> => {
+    // DUPLICATE CHECK: company+position (case insensitive) OR same URL
+    const isDuplicate = applications.some(existing => {
+      const sameCompanyAndPosition = 
+        existing.entreprise.toLowerCase().trim() === application.entreprise.toLowerCase().trim() &&
+        existing.poste.toLowerCase().trim() === application.poste.toLowerCase().trim();
+      
+      const sameUrl = application.url && existing.url && 
+        existing.url.toLowerCase().trim() === application.url.toLowerCase().trim();
+      
+      return sameCompanyAndPosition || sameUrl;
+    });
+
+    if (isDuplicate) {
+      toast.error('⛔ Cette offre existe déjà dans votre tableau de bord.');
+      throw new Error('Duplicate application');
+    }
+
     const newApp: Application = {
       ...application,
       id: crypto.randomUUID(),
@@ -54,13 +71,20 @@ export function useLocalApplications() {
   };
 
   const importApplications = async (apps: Partial<Application>[]): Promise<string[]> => {
+    // Enhanced duplicate detection: company+position OR same URL
     const existingKeys = new Set(
-      applications.map(app => `${app.entreprise.toLowerCase()}-${app.poste.toLowerCase()}`)
+      applications.map(app => `${app.entreprise.toLowerCase().trim()}-${app.poste.toLowerCase().trim()}`)
+    );
+    const existingUrls = new Set(
+      applications.filter(app => app.url).map(app => app.url!.toLowerCase().trim())
     );
     
-    const uniqueApps = apps.filter(app => 
-      !existingKeys.has(`${app.entreprise?.toLowerCase()}-${app.poste?.toLowerCase()}`)
-    );
+    const uniqueApps = apps.filter(app => {
+      const key = `${app.entreprise?.toLowerCase().trim()}-${app.poste?.toLowerCase().trim()}`;
+      const hasKeyDuplicate = existingKeys.has(key);
+      const hasUrlDuplicate = app.url && existingUrls.has(app.url.toLowerCase().trim());
+      return !hasKeyDuplicate && !hasUrlDuplicate;
+    });
 
     const newApps: Application[] = uniqueApps.map(app => ({
       id: crypto.randomUUID(),
