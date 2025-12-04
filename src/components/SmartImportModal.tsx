@@ -3,13 +3,13 @@ import { Application } from '@/types/application';
 import { parseJobAlert, ParsedJob } from '@/lib/emailParser';
 import { parseTextJobOffer } from '@/lib/textJobParser';
 import { parsePDFFile } from '@/lib/pdfParser';
+import { cleanEmailContent, extractJobContent } from '@/lib/emailCleaner';
 import { supabase } from '@/integrations/supabase/client';
 import { evaluateExclusionRules, shouldExcludeOffer, getExclusionReason, ExclusionFlags } from '@/lib/exclusionRules';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -17,7 +17,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   FileText, Mail, Link as LinkIcon, Sparkles, AlertTriangle, 
   CheckCircle, XCircle, Loader2, MapPin, Languages, GraduationCap,
-  Building, Briefcase, Calendar, ArrowLeft, Plus
+  Building, Briefcase, Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -200,18 +200,28 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
     }
   };
 
-  // Handle email submission
+  // Handle email submission - with cleaning
   const handleSubmitEmail = () => {
     if (!emailContent) {
       toast.error('Veuillez coller le contenu de l\'email');
       return;
     }
     
-    const jobs = parseJobAlert(emailContent);
+    // Clean the email content first
+    const cleanedContent = extractJobContent(emailContent);
+    console.log('Cleaned email content:', cleanedContent.substring(0, 200));
+    
+    const jobs = parseJobAlert(cleanedContent);
     if (jobs.length > 0) {
       handleAnalyze(jobs);
     } else {
-      toast.error('Aucune offre détectée dans l\'email');
+      // Try to parse as raw text if no jobs detected
+      const job = parseTextJobOffer(cleanedContent);
+      if (job) {
+        handleAnalyze([job]);
+      } else {
+        toast.error('Aucune offre détectée dans l\'email');
+      }
     }
   };
 
@@ -266,27 +276,46 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
     const defaultDeadline = new Date(today);
     defaultDeadline.setDate(today.getDate() + 14);
     
+    // Check if OCE job (priority handling)
+    const isOCE = (result.job as any).isOCE || 
+                  result.job.canal === 'OCE' || 
+                  /(?:OCE|ORP|Office cantonal)/i.test(result.job.source || '');
+    
+    // Calculate priority: OCE = 1 (URGENT), high match = 3, default = 2
+    let priority = 2;
+    if (isOCE) {
+      priority = 1; // URGENT for OCE
+    } else if (result.aiAnalysis?.compatibility && result.aiAnalysis.compatibility >= 80) {
+      priority = 3;
+    }
+    
+    // Build notes with OCE warning if applicable
+    let notes = result.aiAnalysis?.reasoning || '';
+    if (isOCE) {
+      notes = `⚠️ OFFRE OCE - Preuve de candidature requise pour validation ORP\n\n${notes}`;
+    }
+    
     const applicationToImport: Partial<Application> = {
       entreprise: result.job.entreprise,
       poste: result.job.poste,
       lieu: result.job.lieu,
       deadline: result.aiAnalysis?.deadline || defaultDeadline.toISOString().split('T')[0],
       statut: 'à compléter',
-      priorite: result.aiAnalysis?.compatibility && result.aiAnalysis.compatibility >= 80 ? 3 : 2,
+      priorite: priority,
       keywords: result.aiAnalysis?.keywords || result.job.motsCles,
-      notes: result.aiAnalysis?.reasoning,
+      notes,
       url: result.job.url,
       compatibility: result.aiAnalysis?.compatibility,
       matchingSkills: result.aiAnalysis?.matchingSkills,
       missingRequirements: result.aiAnalysis?.missingRequirements,
-      recommended_channel: result.aiAnalysis?.recommendedChannel,
-      requiredDocuments: result.aiAnalysis?.requiredDocuments,
+      recommended_channel: isOCE ? 'OCE' : result.aiAnalysis?.recommendedChannel,
+      requiredDocuments: result.aiAnalysis?.requiredDocuments || (isOCE ? ['CV', 'Lettre de motivation', 'Preuve de candidature'] : undefined),
       applicationEmail: result.aiAnalysis?.contacts?.[0]?.email,
     };
     
     try {
       await onImport([applicationToImport]);
-      toast.success(`✅ "${result.job.poste}" importée !`);
+      toast.success(`✅ "${result.job.poste}" importée ${isOCE ? '(OCE - URGENT)' : ''} !`);
       
       // Remove from results
       setAnalysisResults(prev => prev.filter((_, i) => i !== index));
@@ -349,8 +378,8 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
             {step === 'input' && '📥 Importer une nouvelle offre'}
             {step === 'analysis' && (
@@ -365,25 +394,26 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
 
         {/* STEP 1: Input */}
         {step === 'input' && (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="text" className="gap-2 text-xs sm:text-sm">
-                <LinkIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">Texte/Lien</span>
-              </TabsTrigger>
-              <TabsTrigger value="email" className="gap-2 text-xs sm:text-sm">
-                <Mail className="w-4 h-4" />
-                <span className="hidden sm:inline">Email</span>
-              </TabsTrigger>
-              <TabsTrigger value="pdf" className="gap-2 text-xs sm:text-sm">
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">PDF</span>
-              </TabsTrigger>
-              <TabsTrigger value="spontaneous" className="gap-2 text-xs sm:text-sm">
-                <Sparkles className="w-4 h-4" />
-                <span className="hidden sm:inline">Spontanée</span>
-              </TabsTrigger>
-            </TabsList>
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="text" className="gap-2 text-xs sm:text-sm">
+                  <LinkIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">Texte/Lien</span>
+                </TabsTrigger>
+                <TabsTrigger value="email" className="gap-2 text-xs sm:text-sm">
+                  <Mail className="w-4 h-4" />
+                  <span className="hidden sm:inline">Email</span>
+                </TabsTrigger>
+                <TabsTrigger value="pdf" className="gap-2 text-xs sm:text-sm">
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">PDF</span>
+                </TabsTrigger>
+                <TabsTrigger value="spontaneous" className="gap-2 text-xs sm:text-sm">
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Spontanée</span>
+                </TabsTrigger>
+              </TabsList>
 
             <TabsContent value="text" className="space-y-4 mt-4">
               <div>
@@ -520,12 +550,13 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
                 Créer la candidature
               </Button>
             </TabsContent>
-          </Tabs>
+            </Tabs>
+          </div>
         )}
 
         {/* STEP 2: Analysis in progress */}
         {step === 'analysis' && (
-          <div className="flex-1 flex flex-col items-center justify-center py-12">
+          <div className="flex-1 flex flex-col items-center justify-center py-12 px-6">
             <Loader2 className="w-16 h-16 animate-spin text-primary mb-6" />
             <h3 className="text-xl font-semibold mb-2">Analyse IA en cours</h3>
             <p className="text-muted-foreground text-center max-w-md">
@@ -537,162 +568,169 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
 
         {/* STEP 3: Review results */}
         {step === 'review' && (
-          <ScrollArea className="flex-1 -mx-6 px-6">
-            {analysisResults.length === 0 ? (
-              <div className="text-center py-12">
-                <CheckCircle className="w-16 h-16 mx-auto mb-4 text-green-500" />
-                <h3 className="text-xl font-semibold mb-2">Toutes les offres traitées !</h3>
-                <Button onClick={handleClose} className="mt-4">
-                  Fermer
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-6 py-4">
-                {analysisResults.map((result, index) => (
-                  <Card key={index} className={`p-6 ${result.isExcluded ? 'border-destructive/50 bg-destructive/5' : 'border-primary/30'}`}>
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-bold flex items-center gap-2">
-                          <Briefcase className="w-5 h-5 text-primary" />
-                          {result.job.poste}
-                        </h3>
-                        <p className="text-muted-foreground flex items-center gap-2">
-                          <Building className="w-4 h-4" />
-                          {result.job.entreprise} • {result.job.lieu}
-                        </p>
-                      </div>
-                      
-                      {result.isAnalyzing ? (
-                        <Badge variant="secondary" className="gap-1">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Analyse...
-                        </Badge>
-                      ) : result.isExcluded ? (
-                        <Badge variant="destructive" className="gap-1">
-                          <XCircle className="w-3 h-3" /> Exclue
-                        </Badge>
-                      ) : (
-                        <Badge 
-                          variant={result.aiAnalysis?.compatibility && result.aiAnalysis.compatibility >= 70 ? "default" : "secondary"}
-                          className="gap-1 text-lg px-3"
-                        >
-                          {result.aiAnalysis?.compatibility || 0}% Match
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Exclusion warnings */}
-                    {result.isExcluded && (
-                      <div className="mb-4 p-3 bg-destructive/10 rounded-lg">
-                        <p className="font-semibold text-destructive flex items-center gap-2 mb-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          Critères d'exclusion détectés
-                        </p>
-                        {renderExclusionBadge(result.exclusionFlags, result.aiAnalysis?.excluded, result.aiAnalysis?.exclusionReason)}
-                      </div>
-                    )}
-
-                    {/* AI Analysis results */}
-                    {result.aiAnalysis && !result.isExcluded && (
-                      <div className="space-y-4">
-                        {/* Compatibility bar */}
-                        <div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>Compatibilité</span>
-                            <span className="font-semibold">{result.aiAnalysis.compatibility}%</span>
-                          </div>
-                          <Progress 
-                            value={result.aiAnalysis.compatibility} 
-                            className={`h-2 ${result.aiAnalysis.compatibility >= 70 ? '' : '[&>div]:bg-orange-500'}`}
-                          />
-                        </div>
-
-                        {/* Skills */}
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm font-medium text-green-700 mb-2 flex items-center gap-1">
-                              <CheckCircle className="w-4 h-4" /> Vos atouts
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {result.aiAnalysis.matchingSkills?.slice(0, 5).map((skill, i) => (
-                                <Badge key={i} variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                                  {skill}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-orange-700 mb-2 flex items-center gap-1">
-                              <AlertTriangle className="w-4 h-4" /> À renforcer
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {result.aiAnalysis.missingRequirements?.slice(0, 5).map((req, i) => (
-                                <Badge key={i} variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
-                                  {req}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Deadline & Channel */}
-                        <div className="flex flex-wrap gap-4 text-sm">
-                          {result.aiAnalysis.deadline && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Calendar className="w-4 h-4" />
-                              Deadline: <span className="font-medium text-foreground">{result.aiAnalysis.deadline}</span>
-                            </div>
-                          )}
-                          {result.aiAnalysis.recommendedChannel && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              Canal: <span className="font-medium text-foreground">{result.aiAnalysis.recommendedChannel}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Reasoning */}
-                        {result.aiAnalysis.reasoning && (
-                          <p className="text-sm text-muted-foreground italic border-l-2 border-primary/30 pl-3">
-                            💡 {result.aiAnalysis.reasoning}
+          <>
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-y-auto px-6">
+              {analysisResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-16 h-16 mx-auto mb-4 text-green-500" />
+                  <h3 className="text-xl font-semibold mb-2">Toutes les offres traitées !</h3>
+                  <Button onClick={handleClose} className="mt-4">
+                    Fermer
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4 py-4">
+                  {analysisResults.map((result, index) => (
+                    <Card key={index} className={`p-5 ${result.isExcluded ? 'border-destructive/50 bg-destructive/5' : 'border-primary/30'}`}>
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-bold flex items-center gap-2 truncate">
+                            <Briefcase className="w-4 h-4 text-primary shrink-0" />
+                            <span className="truncate">{result.job.poste}</span>
+                          </h3>
+                          <p className="text-sm text-muted-foreground flex items-center gap-2">
+                            <Building className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{result.job.entreprise} • {result.job.lieu}</span>
                           </p>
+                        </div>
+                        
+                        {result.isAnalyzing ? (
+                          <Badge variant="secondary" className="gap-1 shrink-0 ml-2">
+                            <Loader2 className="w-3 h-3 animate-spin" /> Analyse...
+                          </Badge>
+                        ) : result.isExcluded ? (
+                          <Badge variant="destructive" className="gap-1 shrink-0 ml-2">
+                            <XCircle className="w-3 h-3" /> Exclue
+                          </Badge>
+                        ) : (
+                          <Badge 
+                            variant={result.aiAnalysis?.compatibility && result.aiAnalysis.compatibility >= 70 ? "default" : "secondary"}
+                            className="gap-1 text-sm px-2 shrink-0 ml-2"
+                          >
+                            {result.aiAnalysis?.compatibility || 0}%
+                          </Badge>
                         )}
                       </div>
-                    )}
 
-                    {/* Action buttons */}
-                    <div className="flex gap-3 mt-6 pt-4 border-t">
-                      <Button
-                        variant="outline"
-                        onClick={() => handleReject(index)}
-                        className="flex-1 gap-2 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <XCircle className="w-4 h-4" />
-                        Rejeter
-                      </Button>
-                      <Button
-                        onClick={() => handleValidateAndImport(index)}
-                        className="flex-1 gap-2"
-                        disabled={result.isAnalyzing}
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Valider & Importer
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+                      {/* Exclusion warnings */}
+                      {result.isExcluded && (
+                        <div className="mb-3 p-2 bg-destructive/10 rounded-lg">
+                          <p className="font-semibold text-destructive flex items-center gap-2 text-sm mb-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Critères d'exclusion
+                          </p>
+                          {renderExclusionBadge(result.exclusionFlags, result.aiAnalysis?.excluded, result.aiAnalysis?.exclusionReason)}
+                        </div>
+                      )}
 
-                {/* Add another button */}
+                      {/* AI Analysis results - compact */}
+                      {result.aiAnalysis && !result.isExcluded && (
+                        <div className="space-y-3">
+                          {/* Compatibility bar */}
+                          <div>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span>Compatibilité</span>
+                              <span className="font-semibold">{result.aiAnalysis.compatibility}%</span>
+                            </div>
+                            <Progress 
+                              value={result.aiAnalysis.compatibility} 
+                              className={`h-1.5 ${result.aiAnalysis.compatibility >= 70 ? '' : '[&>div]:bg-orange-500'}`}
+                            />
+                          </div>
+
+                          {/* Skills - compact */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" /> Atouts
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {result.aiAnalysis.matchingSkills?.slice(0, 3).map((skill, i) => (
+                                  <Badge key={i} variant="secondary" className="bg-green-100 text-green-800 text-xs py-0">
+                                    {skill}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-orange-700 mb-1 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" /> À renforcer
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {result.aiAnalysis.missingRequirements?.slice(0, 3).map((req, i) => (
+                                  <Badge key={i} variant="secondary" className="bg-orange-100 text-orange-800 text-xs py-0">
+                                    {req}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Deadline & Channel - inline */}
+                          <div className="flex flex-wrap gap-3 text-xs">
+                            {result.aiAnalysis.deadline && (
+                              <span className="text-muted-foreground">
+                                📅 {result.aiAnalysis.deadline}
+                              </span>
+                            )}
+                            {result.aiAnalysis.recommendedChannel && (
+                              <span className="text-muted-foreground">
+                                📬 {result.aiAnalysis.recommendedChannel}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action buttons - inside card */}
+                      <div className="flex gap-2 mt-4 pt-3 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReject(index)}
+                          className="flex-1 gap-1 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                        >
+                          <XCircle className="w-3 h-3" />
+                          Rejeter
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleValidateAndImport(index)}
+                          className="flex-1 gap-1"
+                          disabled={result.isAnalyzing}
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          Importer
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Fixed footer - always visible */}
+            {analysisResults.length > 0 && (
+              <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
                 <Button
                   variant="outline"
                   onClick={() => setStep('input')}
-                  className="w-full gap-2"
+                  className="gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   Ajouter une autre offre
                 </Button>
-              </div>
+                <Button
+                  variant="ghost"
+                  onClick={handleClose}
+                >
+                  Fermer
+                </Button>
+              </DialogFooter>
             )}
-          </ScrollArea>
+          </>
         )}
       </DialogContent>
     </Dialog>

@@ -4,21 +4,66 @@ import { ParsedJob } from './emailParser';
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
+// OCE/ORP Detection patterns
+const OCE_PATTERNS = [
+  /office\s+cantonal\s+de\s+l['']?emploi/i,
+  /\bOCE\b/,
+  /\bORP\b/,
+  /office\s+régional\s+de\s+placement/i,
+  /service\s+public\s+de\s+l['']?emploi/i,
+];
+
+const detectOCE = (text: string): boolean => {
+  return OCE_PATTERNS.some(pattern => pattern.test(text));
+};
+
 export const parsePDFFile = async (file: File): Promise<ParsedJob | null> => {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
     let fullText = '';
+    const numPages = pdf.numPages;
     
-    // Extract text from all pages
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      fullText += pageText + '\n';
+    console.log(`PDF parsing: ${numPages} pages detected`);
+    
+    // Extract text from ALL pages - don't skip any
+    for (let i = 1; i <= numPages; i++) {
+      try {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        
+        // Better text extraction with proper spacing
+        let pageText = '';
+        let lastY = 0;
+        
+        textContent.items.forEach((item: any) => {
+          if (item.str) {
+            // Add newline if Y position changed significantly (new line)
+            if (lastY && Math.abs(item.transform[5] - lastY) > 5) {
+              pageText += '\n';
+            }
+            pageText += item.str + ' ';
+            lastY = item.transform[5];
+          }
+        });
+        
+        // Only add if page has meaningful content
+        const trimmedPage = pageText.trim();
+        if (trimmedPage.length > 20) {
+          fullText += `\n--- Page ${i} ---\n` + trimmedPage + '\n';
+        }
+      } catch (pageError) {
+        console.warn(`Error extracting page ${i}:`, pageError);
+        continue;
+      }
+    }
+    
+    console.log(`PDF total extracted text length: ${fullText.length} chars`);
+    
+    if (fullText.length < 50) {
+      console.error('PDF text extraction failed - too little content');
+      return null;
     }
     
     return parseJobOfferText(fullText);
@@ -29,7 +74,9 @@ export const parsePDFFile = async (file: File): Promise<ParsedJob | null> => {
 };
 
 const parseJobOfferText = (text: string): ParsedJob | null => {
+  // Clean text but preserve structure for better parsing
   const cleanText = text.replace(/\s+/g, ' ').trim();
+  const originalText = text; // Keep original for reference
   
   let entreprise = '';
   let poste = '';
@@ -40,10 +87,15 @@ const parseJobOfferText = (text: string): ParsedJob | null => {
   let applicationInstructions = '';
   const requiredDocuments: string[] = [];
   
+  // Detect if OCE/ORP document
+  const isOCE = detectOCE(cleanText);
+  
   // Extract company name
   const companyPatterns = [
-    /(?:entreprise|company|organisation|société)[:\s]+([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s&'-]{2,50})/i,
+    /(?:entreprise|company|organisation|société|employeur)[:\s]+([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s&'-]{2,50})/i,
     /^([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s&'-]{2,50})(?:\s+(?:recherche|recrute|is hiring))/i,
+    /(?:pour|pour le compte de|chez)\s+([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s&'-]{2,50})/i,
+    /(?:mandataire|client)[:\s]+([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s&'-]{2,50})/i,
   ];
   
   for (const pattern of companyPatterns) {
@@ -54,11 +106,12 @@ const parseJobOfferText = (text: string): ParsedJob | null => {
     }
   }
   
-  // Extract position
+  // Extract position - enhanced patterns
   const positionPatterns = [
-    /(?:poste|position|titre)[:\s]+([^.\n]{10,100})/i,
+    /(?:poste|position|titre|fonction)[:\s]+([^.\n]{10,100})/i,
     /(?:recherche|recrute|hiring)[:\s]+(?:un|une|a)?\s*([^.\n]{10,100})/i,
-    /(?:responsable|manager|coordinat|director|chef|chargé|assistant)[^.\n]{5,80}/i,
+    /(?:offre d['']?emploi)[:\s]+([^.\n]{10,100})/i,
+    /(?:responsable|manager|coordinat|director|chef|chargé|assistant|secrétaire|comptable|conseiller)[^.\n]{5,80}/i,
   ];
   
   for (const pattern of positionPatterns) {
@@ -66,15 +119,26 @@ const parseJobOfferText = (text: string): ParsedJob | null => {
     if (match) {
       poste = match[1] ? match[1].trim() : match[0].trim();
       poste = poste.replace(/^(un|une|a|the)\s+/i, '');
+      // Clean up common artifacts
+      poste = poste.replace(/\s+/g, ' ').substring(0, 80);
       break;
     }
   }
   
-  // Extract location
+  // If still no position found, try to find title-like patterns
+  if (!poste) {
+    const titleMatch = cleanText.match(/(?:^|\n)\s*([A-ZÀ-Ÿ][A-Za-zÀ-ÿ\s\-\/]+(?:100%|80%|50%)?)\s*(?:\n|$)/);
+    if (titleMatch && titleMatch[1].length > 10 && titleMatch[1].length < 80) {
+      poste = titleMatch[1].trim();
+    }
+  }
+  
+  // Extract location - enhanced for Swiss cantons
   const locationPatterns = [
-    /(?:lieu|location|localisation)[:\s]+([^.\n]{3,50})/i,
-    /(Genève|Geneva|Lausanne|Vaud|Neuchâtel|Fribourg|Valais|Zürich|Bern|Basel)/i,
-    /(?:canton|region)[:\s]+(?:de\s+)?([A-ZÀ-Ÿ][a-zA-Zà-ÿ\s-]{2,30})/i,
+    /(?:lieu de travail|location|localisation|place of work)[:\s]+([^.\n]{3,50})/i,
+    /(Genève|Geneva|Lausanne|Vaud|Neuchâtel|Fribourg|Valais|Zürich|Zurich|Bern|Berne|Basel|Bâle)/i,
+    /(?:canton|region|région)[:\s]+(?:de\s+)?([A-ZÀ-Ÿ][a-zA-Zà-ÿ\s-]{2,30})/i,
+    /(?:à|at|in)\s+(Genève|Geneva|Lausanne|Nyon|Morges|Vernier|Carouge|Vevey)/i,
   ];
   
   for (const pattern of locationPatterns) {
@@ -85,10 +149,16 @@ const parseJobOfferText = (text: string): ParsedJob | null => {
     }
   }
   
-  // Extract deadline
+  // Default to Geneva for OCE
+  if (!lieu && isOCE) {
+    lieu = 'Genève';
+  }
+  
+  // Extract deadline - enhanced patterns
   const deadlinePatterns = [
-    /(?:deadline|délai|date limite|candidature avant|envoye.*avant)[:\s]+(?:le\s+)?(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i,
-    /(?:deadline|délai|date limite|candidature avant)[:\s]+(\d{1,2}\s+(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+\d{4})/i,
+    /(?:deadline|délai|date limite|candidature(?:s)? avant|envoye.*avant|postuler avant|à envoyer avant le|jusqu['']?au)[:\s]+(?:le\s+)?(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i,
+    /(?:deadline|délai|date limite)[:\s]+(\d{1,2}\s+(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+\d{4})/i,
+    /(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})\s*(?:au plus tard|dernier délai)/i,
   ];
   
   for (const pattern of deadlinePatterns) {
@@ -107,8 +177,8 @@ const parseJobOfferText = (text: string): ParsedJob | null => {
   
   // Extract publication date
   const pubDatePatterns = [
-    /(?:publié|published|posted)[:\s]+(?:le\s+)?(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i,
-    /(?:date de publication)[:\s]+(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i,
+    /(?:publié|published|posted|date de publication)[:\s]+(?:le\s+)?(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i,
+    /(?:annonce du|offre du)\s+(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i,
   ];
   
   for (const pattern of pubDatePatterns) {
@@ -121,8 +191,8 @@ const parseJobOfferText = (text: string): ParsedJob | null => {
   
   // Extract application instructions
   const instructionPatterns = [
-    /(?:marche à suivre|candidature|application process|comment postuler)[:\s]+([^.]{20,300})/i,
-    /(?:envoye|envoyez|send|submit).*?(?:cv|curriculum|lettre|motivation|certificat).*?(?:à|to|at)[:\s]+([^.]{10,200})/i,
+    /(?:marche à suivre|candidature|application process|comment postuler|pour postuler)[:\s]+([^.]{20,300})/i,
+    /(?:envoye|envoyez|send|submit|adresser|transmettre).*?(?:cv|curriculum|lettre|motivation|certificat|dossier).*?(?:à|to|at)[:\s]+([^.]{10,200})/i,
   ];
   
   for (const pattern of instructionPatterns) {
@@ -138,34 +208,49 @@ const parseJobOfferText = (text: string): ParsedJob | null => {
     /\b(cv|curriculum vitae|resume)\b/i,
     /\b(lettre de motivation|cover letter|motivation letter)\b/i,
     /\b(certificat|certificate|diplom|diploma)\b/i,
-    /\b(attestation de travail|work certificate|reference)\b/i,
+    /\b(attestation de travail|work certificate|reference|références)\b/i,
+    /\b(extrait de casier|casier judiciaire)\b/i,
+    /\b(permis de travail|autorisation de travail)\b/i,
   ];
   
   docPatterns.forEach(pattern => {
     const match = cleanText.match(pattern);
     if (match) {
       const doc = match[0].trim();
-      if (!requiredDocuments.includes(doc)) {
+      if (!requiredDocuments.some(d => d.toLowerCase() === doc.toLowerCase())) {
         requiredDocuments.push(doc);
       }
     }
   });
   
-  // If we found at least a position, return the parsed job
-  if (poste) {
-    return {
-      entreprise: entreprise || 'À préciser',
-      poste,
+  // For OCE documents, add proof of application requirement
+  if (isOCE) {
+    if (!requiredDocuments.includes('Preuve de candidature')) {
+      requiredDocuments.push('Preuve de candidature');
+    }
+  }
+  
+  // Build result if we found at least something meaningful
+  if (poste || entreprise) {
+    const result: any = {
+      entreprise: entreprise || (isOCE ? 'Via OCE' : 'À préciser'),
+      poste: poste || 'Poste à identifier',
       lieu: lieu || 'À préciser',
-      canal: 'PDF',
-      motsCles: cleanText.substring(0, 500),
-      source: 'PDF importé',
+      canal: isOCE ? 'OCE' : 'PDF',
+      motsCles: cleanText.substring(0, 800),
+      source: isOCE ? 'Office Cantonal de l\'Emploi' : 'PDF importé',
       deadline,
       applicationEmail,
       publicationDate,
       applicationInstructions,
       requiredDocuments,
-    } as any;
+      // OCE-specific fields
+      isOCE,
+      priority: isOCE ? 1 : undefined, // Priority 1 = URGENT for OCE
+      notes: isOCE ? '⚠️ OFFRE OCE - Preuve de candidature requise pour validation ORP' : undefined,
+    };
+    
+    return result as ParsedJob;
   }
   
   return null;
