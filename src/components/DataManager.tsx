@@ -3,6 +3,40 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Download, Upload, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { z } from 'zod';
+
+// Schema for validating imported applications
+const applicationSchema = z.object({
+  id: z.string().optional(),
+  entreprise: z.string().min(1, 'Entreprise requis'),
+  poste: z.string().min(1, 'Poste requis'),
+  lieu: z.string().min(1, 'Lieu requis'),
+  statut: z.string().min(1, 'Statut requis'),
+  deadline: z.string(),
+  priorite: z.number().optional().default(1),
+  url: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  contacts: z.array(z.any()).nullable().optional(),
+  actions: z.array(z.any()).nullable().optional(),
+  keywords: z.string().nullable().optional(),
+  compatibility: z.number().nullable().optional(),
+  matching_skills: z.array(z.any()).nullable().optional(),
+  missing_requirements: z.array(z.any()).nullable().optional(),
+  original_offer_url: z.string().nullable().optional(),
+  recommended_channel: z.string().nullable().optional(),
+  application_email: z.string().nullable().optional(),
+  application_instructions: z.string().nullable().optional(),
+  type: z.string().nullable().optional(),
+  referent: z.string().nullable().optional(),
+  required_documents: z.array(z.string()).nullable().optional(),
+  publication_date: z.string().nullable().optional(),
+  cv_template_id: z.string().nullable().optional(),
+  letter_template_id: z.string().nullable().optional(),
+  is_complete: z.boolean().nullable().optional(),
+  ats_compliant: z.boolean().nullable().optional(),
+});
+
+const importDataSchema = z.array(applicationSchema);
 
 interface DataManagerProps {
   applications: Application[];
@@ -38,11 +72,21 @@ export function DataManager({ applications, onImport, open, onClose }: DataManag
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const importedData = JSON.parse(event.target?.result as string) as Application[];
+        const rawData = JSON.parse(event.target?.result as string);
         
-        if (!Array.isArray(importedData)) {
-          throw new Error('Format invalide');
+        // Validate the imported data against schema
+        const validationResult = importDataSchema.safeParse(rawData);
+        
+        if (!validationResult.success) {
+          const errorMessages = validationResult.error.errors
+            .slice(0, 3) // Show first 3 errors max
+            .map(err => `${err.path.join('.')}: ${err.message}`)
+            .join(', ');
+          toast.error(`Format de données invalide: ${errorMessages}`);
+          return;
         }
+
+        const importedData = validationResult.data as Application[];
 
         // Detect duplicates based on entreprise + poste
         const existingKeys = new Set(
@@ -64,8 +108,7 @@ export function DataManager({ applications, onImport, open, onClose }: DataManag
         
         onClose();
       } catch (error) {
-        toast.error('Erreur lors de l\'import. Fichier invalide.');
-        console.error(error);
+        toast.error('Erreur lors de l\'import. Fichier JSON invalide.');
       }
     };
     reader.readAsText(file);
