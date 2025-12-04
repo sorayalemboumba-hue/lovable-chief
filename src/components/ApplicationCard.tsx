@@ -64,43 +64,50 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
     }
   };
 
-  // 3. Générateur de Super Prompt (Stratégie Canva/ChatGPT)
+  // 1. GÉNÉRATEUR DE BRIEFING STRATÉGIQUE (Pour ChatGPT)
   const copySuperPrompt = () => {
     const prompt = `
-    Agis comme un Expert Recrutement et Copywriter Senior.
+    🔴 BRIEFING MISSION POUR LE GPT "RÉDACTEUR SORAYA" :
+
+    ► CONTEXTE DE L'OFFRE :
+    - Poste visé : ${application.poste}
+    - Entreprise : ${application.entreprise}
+    - Lieu : ${application.lieu}
     
-    CONTEXTE :
-    Je postule chez : ${application.entreprise}
-    Poste : ${application.poste}
-    Lieu : ${application.lieu}
+    ► ANALYSE STRATÉGIQUE (Données SoSoFlow) :
+    - Mots-clés impératifs (ATS) : ${application.keywords || "À extraire de l'offre"}
+    - Mes Atouts majeurs : ${application.matchingSkills || "Mon expérience en gestion de projet et coordination"}
+    - ⚠️ Points de Vigilance (Gaps à combler) : ${application.missingRequirements?.join(', ') || "Aucun gap majeur détecté"}
     
-    ANALYSE DU POSTE (Mots-clés détectés) :
-    ${application.keywords || "À extraire de l'offre"}
-    
-    MON PROFIL (Points forts détectés) :
-    ${application.matchingSkills || "Expérience pertinente en gestion de projet et coordination"}
-    
-    INSTRUCTIONS POUR LA LETTRE :
-    Rédige une lettre de motivation structurée et percutante (Style Suisse Romande).
-    1. Accroche : Storytelling sur l'alignement de valeurs.
-    2. Corps : Preuves concrètes (STAR) liées aux mots-clés ci-dessus.
-    3. Conclusion : Appel à l'action confiant.
-    4. Ton : Professionnel, Engagé, mais Humain.
+    ► ORDRE DE MISSION :
+    Rédige une lettre de motivation "Executive" et un Profil CV sur-mesure.
+    Stratégie : Utilise mon style (Storytelling engagé) et appuie sur mes atouts pour compenser les points de vigilance cités ci-dessus.
     `;
+    
     navigator.clipboard.writeText(prompt);
-    toast.success("✨ Super-Prompt copié ! Colle-le dans ChatGPT.");
+    toast.success("📋 Briefing Stratégique copié ! À coller dans ChatGPT.");
   };
 
+  // 2. GÉNÉRATEUR DE KIT D'ASSEMBLAGE (Pour Canva)
   const copyDesignBrief = () => {
-     const brief = `
-     POUR GEMINI/CANVA - BRIEF DESIGN :
-     Crée un CV moderne "Executive".
-     - Titre : ${application.poste}
-     - Couleur accent : Bleu Marine ou couleur de ${application.entreprise}
-     - Mettre en avant ces compétences : ${application.keywords}
-     `;
-     navigator.clipboard.writeText(brief);
-     toast.success("🎨 Brief Design copié !");
+    const brief = `
+    🎨 KIT D'ASSEMBLAGE POUR CANVA (Copier-Coller) :
+    
+    1. TITRE DU POSTE (En haut, Vert Sauge) :
+    ${application.poste ? application.poste.toUpperCase() : "TITRE DU POSTE"}
+    
+    2. SOUS-TITRE (Contexte) :
+    ${application.entreprise} | ${application.lieu}
+    
+    3. MOTS-CLÉS À METTRE EN GRAS (Section Compétences) :
+    ${application.keywords || "Gestion de projet, Coordination, Communication"}
+    
+    4. NOM DU FICHIER EXPORT :
+    CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g, '_') : 'Candidature'}_${new Date().getFullYear()}.pdf
+    `;
+    
+    navigator.clipboard.writeText(brief);
+    toast.success("🎨 Kit Design copié ! Prêt pour l'assemblage Canva.");
   };
 
   return (
