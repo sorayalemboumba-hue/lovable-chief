@@ -3,8 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Application } from "@/types/application";
 import { BriefCandidature } from "./BriefCandidature";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { formatDateDisplay, getDaysUntil } from "@/lib/dateUtils";
 import { AlertTriangle, Clock, Ban, ExternalLink, Sparkles, Copy, FileText, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -22,9 +21,9 @@ interface ApplicationCardProps {
 export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: ApplicationCardProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // 1. Calculs Dates & Coaching
-  const daysUntil = application.deadline ? Math.ceil((new Date(application.deadline).getTime() - Date.now()) / 86400000) : null;
-  const formattedDeadline = application.deadline ? format(new Date(application.deadline), "d MMM yyyy", { locale: fr }) : "Date inconnue";
+  // 1. Calculs Dates & Coaching (SANS conversion timezone)
+  const daysUntil = application.deadline ? getDaysUntil(application.deadline) : null;
+  const formattedDeadline = formatDateDisplay(application.deadline || '');
 
   const getCoachingBanner = () => {
     if (application.excluded) return <div className="bg-red-100 p-3 rounded-md flex items-center gap-2 text-red-800 font-bold mb-4"><Ban className="w-5 h-5" /> ⛔ OFFRE EXCLUE : {application.exclusion_reason}</div>;
