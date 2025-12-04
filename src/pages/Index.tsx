@@ -7,7 +7,7 @@ import { ApplicationCard } from '@/components/ApplicationCard';
 import { ApplicationForm } from '@/components/ApplicationForm';
 import { CoachingPanel } from '@/components/CoachingPanel';
 import { IntelligentTools } from '@/components/IntelligentTools';
-import { EmailImportModal } from '@/components/EmailImportModal';
+import { SmartImportModal } from '@/components/SmartImportModal';
 import { CVGeneratorModal } from '@/components/CVGeneratorModal';
 import { LetterGeneratorModal } from '@/components/LetterGeneratorModal';
 import { CalendarView } from '@/components/CalendarView';
@@ -20,7 +20,8 @@ import { SupabaseMigration } from '@/components/SupabaseMigration';
 import { MigrationButton } from '@/components/MigrationButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, Loader2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { sortByPriority, getPriorityScore } from '@/lib/priorityEngine';
 import { COACHING_LIBRARY } from '@/data/coaching';
@@ -37,6 +38,13 @@ const Index = () => {
   const [selectedApplicationForLetter, setSelectedApplicationForLetter] = useState<Application | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'offres' | 'candidatures' | 'calendrier' | 'taches' | 'productivite'>('dashboard');
   const [filters, setFilters] = useState<FilterState>({});
+
+  // Reset all applications
+  const handleResetAll = useCallback(async () => {
+    localStorage.removeItem('sosoflow_applications');
+    toast.success('🗑️ Toutes les données ont été supprimées');
+    window.location.reload();
+  }, []);
 
   // Memoized filter function
   const applyFilters = useCallback((apps: Application[]) => {
@@ -209,6 +217,35 @@ const Index = () => {
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <DeadlineNotifications applications={applications} />
               <MigrationButton />
+              
+              {/* Reset All Button */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="default"
+                    className="gap-2 flex-1 sm:flex-none text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span className="hidden sm:inline">Réinitialiser</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>🗑️ Réinitialiser toutes les données ?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Cette action est irréversible. Toutes vos offres et candidatures seront supprimées définitivement.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Supprimer tout
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              
               <Button 
                 variant="ghost" 
                 size="default"
@@ -227,7 +264,7 @@ const Index = () => {
                 <CalendarIcon className="w-5 h-5" />
                 <span className="hidden sm:inline">Calendrier</span>
               </Button>
-              <Button onClick={handleNewApplication} size="default" className="gap-2 flex-1 sm:flex-none">
+              <Button onClick={() => setIsEmailImportOpen(true)} size="default" className="gap-2 flex-1 sm:flex-none">
                 <Plus className="w-5 h-5" />
                 <span className="hidden sm:inline">Nouvelle offre</span>
               </Button>
@@ -460,7 +497,7 @@ const Index = () => {
         isNewOffer={!editingApplication}
       />
 
-      <EmailImportModal
+      <SmartImportModal
         open={isEmailImportOpen}
         onClose={() => setIsEmailImportOpen(false)}
         onImport={handleImportJobs}
