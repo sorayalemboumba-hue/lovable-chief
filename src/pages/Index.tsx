@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Application } from '@/types/application';
 import { useLocalApplications } from '@/hooks/useLocalApplications';
+import { usePersonalTasks } from '@/hooks/usePersonalTasks';
 import { DashboardStats, ApplicationList } from '@/components/dashboard';
 import { ApplicationCard } from '@/components/ApplicationCard';
 import { ApplicationForm } from '@/components/ApplicationForm';
@@ -10,18 +11,17 @@ import { IntelligentTools } from '@/components/IntelligentTools';
 import { SmartImportModal } from '@/components/SmartImportModal';
 import { CVGeneratorModal } from '@/components/CVGeneratorModal';
 import { LetterGeneratorModal } from '@/components/LetterGeneratorModal';
-import { CalendarView } from '@/components/CalendarView';
-import { TasksView } from '@/components/TasksView';
+import { WeekCalendarView } from '@/components/WeekCalendarView';
+import { PersonalTaskManager } from '@/components/PersonalTaskManager';
 import { ProductivityView } from '@/components/ProductivityView';
 import { DataManager } from '@/components/DataManager';
 import { FilterPanel, FilterState } from '@/components/FilterPanel';
 import { DeadlineNotifications } from '@/components/DeadlineNotifications';
 import { SupabaseMigration } from '@/components/SupabaseMigration';
-import { MigrationButton } from '@/components/MigrationButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Search, Target, BarChart3, Briefcase, Calendar as CalendarIcon, CheckCircle, Zap, Database, Loader2, Trash2, Cloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { sortByPriority, getPriorityScore } from '@/lib/priorityEngine';
 import { COACHING_LIBRARY } from '@/data/coaching';
@@ -29,6 +29,7 @@ import { COACHING_LIBRARY } from '@/data/coaching';
 const Index = () => {
   const navigate = useNavigate();
   const { applications, loading, addApplication, updateApplication, deleteApplication, importApplications, refetch } = useLocalApplications();
+  const { tasks: personalTasks, addTask: addPersonalTask, toggleTask: togglePersonalTask, deleteTask: deletePersonalTask } = usePersonalTasks();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApplication, setEditingApplication] = useState<Application | undefined>();
@@ -237,7 +238,6 @@ const Index = () => {
             
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <DeadlineNotifications applications={applications} />
-              <MigrationButton />
               
               {/* Reset All Button */}
               <AlertDialog>
@@ -273,8 +273,8 @@ const Index = () => {
                 onClick={() => setIsDataManagerOpen(true)}
                 className="gap-2 flex-1 sm:flex-none"
               >
-                <Database className="w-5 h-5" />
-                <span className="hidden sm:inline">Sauvegarder</span>
+                <Cloud className="w-5 h-5" />
+                <span className="hidden sm:inline">☁️ Sauvegarder</span>
               </Button>
               <Button 
                 variant="outline" 
@@ -487,16 +487,18 @@ const Index = () => {
           </div>
         )}
 
-        {/* Calendrier */}
+        {/* Calendrier - Vue Semaine */}
         {activeTab === 'calendrier' && (
-          <CalendarView applications={applications} />
+          <WeekCalendarView applications={applications} tasks={personalTasks} />
         )}
 
-        {/* Tâches */}
+        {/* Tâches Personnelles */}
         {activeTab === 'taches' && (
-          <TasksView 
-            applications={applications}
-            onUpdateApplication={handleUpdateApplication}
+          <PersonalTaskManager 
+            tasks={personalTasks}
+            onAddTask={addPersonalTask}
+            onToggleTask={togglePersonalTask}
+            onDeleteTask={deletePersonalTask}
           />
         )}
 
