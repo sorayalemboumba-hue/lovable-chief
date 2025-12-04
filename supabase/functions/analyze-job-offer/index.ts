@@ -12,6 +12,20 @@ function getDefaultDeadline(): string {
   return date.toISOString().split('T')[0];
 }
 
+// Detect OCE/ORP documents
+function detectOCE(text: string): boolean {
+  const patterns = [
+    /office\s+cantonal\s+de\s+l['']?emploi/i,
+    /\bOCE\b/,
+    /\bORP\b/,
+    /office\s+régional\s+de\s+placement/i,
+    /REPUBLIQUE\s+ET\s+CANTON\s+DE\s+GENEVE/i,
+    /assignation/i,
+    /demande\s+de\s+candidature/i,
+  ];
+  return patterns.some(pattern => pattern.test(text));
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -20,6 +34,31 @@ serve(async (req) => {
   try {
     const { jobDescription, userProfile } = await req.json();
     
+    // Handle empty or missing job description gracefully
+    if (!jobDescription || jobDescription.trim().length < 20) {
+      console.log('Job description too short or empty, returning extraction_failed warning');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          warning: 'extraction_failed',
+          text: '',
+          compatibility: 50,
+          matching_skills: [],
+          missing_requirements: [],
+          keywords: '',
+          recommended_channel: 'direct',
+          required_documents: ['CV', 'Lettre de motivation'],
+          deadline: getDefaultDeadline(),
+          urgent_no_deadline: true,
+          contacts: [],
+          excluded: false,
+          exclusion_reason: null,
+          reasoning: 'Extraction automatique impossible. Veuillez compléter manuellement.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY not configured');
@@ -27,6 +66,10 @@ serve(async (req) => {
 
     const today = new Date().toISOString().split('T')[0];
     const defaultDeadline = getDefaultDeadline();
+    
+    // Check if OCE document - special handling
+    const isOCE = detectOCE(jobDescription);
+    console.log('OCE document detected:', isOCE);
 
     const systemPrompt = `Tu es un RECRUTEUR EXPERT et analyste ATS senior. Tu dois extraire TOUTES les informations d'une offre d'emploi avec une précision absolue.
 
@@ -44,6 +87,7 @@ serve(async (req) => {
   - "linkedin" (si LinkedIn mentionné)
   - "portal" (si portail de recrutement: JobUp, Indeed, etc.)
   - "spontaneous" (si candidature spontanée suggérée)
+  - "OCE" (si document Office Cantonal de l'Emploi/ORP)
 
 ### 3. DOCUMENTS REQUIS
 - **required_documents**: Liste TOUS les documents demandés:
@@ -51,6 +95,7 @@ serve(async (req) => {
   - Casier judiciaire, Extrait de poursuites
   - Certificats de travail, Diplômes
   - Permis de travail, Portfolio, etc.
+  - Pour OCE: ajoute "Preuve de candidature"
 
 ### 4. CONTACTS
 - **contacts**: Extrais les informations de contact:
@@ -69,7 +114,14 @@ Marque excluded: true si UNE de ces conditions est vraie:
 - **compatibility**: Score 0-100 basé sur correspondance profil/offre
 - **matching_skills**: Compétences du candidat qui matchent
 - **missing_requirements**: Compétences manquantes (POINTS SENSIBLES à améliorer)
-- **keywords**: Mots-clés ATS importants pour le CV`;
+- **keywords**: Mots-clés ATS importants pour le CV
+
+### 7. DOCUMENTS OCE SPÉCIAUX
+${isOCE ? `ATTENTION: Ce document provient de l'Office Cantonal de l'Emploi (OCE/ORP).
+- La description du poste est souvent sur la PAGE 2 ou après "Concerne: demande de candidature"
+- Force recommended_channel: "OCE"
+- Ajoute "Preuve de candidature" aux required_documents
+- Ce type d'offre est PRIORITAIRE` : ''}`;
 
     const userPrompt = `## PROFIL CANDIDAT
 ${userProfile}
@@ -85,7 +137,7 @@ Analyse cette offre et retourne un JSON STRICT avec cette structure:
   "matching_skills": [<array de strings>],
   "missing_requirements": [<array de strings - POINTS SENSIBLES>],
   "keywords": "<string de mots-clés ATS séparés par virgules>",
-  "recommended_channel": "<email|linkedin|portal|spontaneous>",
+  "recommended_channel": "<email|linkedin|portal|spontaneous|OCE>",
   "required_documents": [<array de strings>],
   "publication_date": "<YYYY-MM-DD ou null>",
   "deadline": "<YYYY-MM-DD>",
@@ -137,18 +189,81 @@ Date du jour: ${today}`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status}`);
+      
+      // Return graceful fallback instead of error
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          warning: 'ai_analysis_failed',
+          compatibility: 50,
+          matching_skills: [],
+          missing_requirements: [],
+          keywords: '',
+          recommended_channel: isOCE ? 'OCE' : 'direct',
+          required_documents: isOCE ? ['CV', 'Lettre de motivation', 'Preuve de candidature'] : ['CV', 'Lettre de motivation'],
+          deadline: defaultDeadline,
+          urgent_no_deadline: true,
+          contacts: [],
+          excluded: false,
+          exclusion_reason: null,
+          reasoning: 'Analyse IA indisponible. Données de base utilisées.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     
     if (!content) {
-      throw new Error('No content in AI response');
+      console.log('No content in AI response, returning fallback');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          warning: 'empty_response',
+          compatibility: 50,
+          matching_skills: [],
+          missing_requirements: [],
+          keywords: '',
+          recommended_channel: isOCE ? 'OCE' : 'direct',
+          required_documents: isOCE ? ['CV', 'Lettre de motivation', 'Preuve de candidature'] : ['CV', 'Lettre de motivation'],
+          deadline: defaultDeadline,
+          urgent_no_deadline: true,
+          contacts: [],
+          excluded: false,
+          exclusion_reason: null,
+          reasoning: 'Réponse IA vide. Veuillez compléter manuellement.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('AI Response received, parsing...');
-    const analysis = JSON.parse(content);
+    let analysis;
+    try {
+      analysis = JSON.parse(content);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          warning: 'parse_error',
+          compatibility: 50,
+          matching_skills: [],
+          missing_requirements: [],
+          keywords: '',
+          recommended_channel: isOCE ? 'OCE' : 'direct',
+          required_documents: isOCE ? ['CV', 'Lettre de motivation', 'Preuve de candidature'] : ['CV', 'Lettre de motivation'],
+          deadline: defaultDeadline,
+          urgent_no_deadline: true,
+          contacts: [],
+          excluded: false,
+          exclusion_reason: null,
+          reasoning: 'Erreur de parsing. Veuillez compléter manuellement.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Post-processing: Ensure deadline is set
     if (!analysis.deadline) {
@@ -156,7 +271,19 @@ Date du jour: ${today}`;
       analysis.urgent_no_deadline = true;
     }
 
+    // Force OCE settings if detected
+    if (isOCE) {
+      analysis.recommended_channel = 'OCE';
+      if (!analysis.required_documents) {
+        analysis.required_documents = [];
+      }
+      if (!analysis.required_documents.includes('Preuve de candidature')) {
+        analysis.required_documents.push('Preuve de candidature');
+      }
+    }
+
     // Ensure required fields have defaults
+    analysis.success = true;
     analysis.required_documents = analysis.required_documents || ['CV', 'Lettre de motivation'];
     analysis.contacts = analysis.contacts || [];
     analysis.matching_skills = analysis.matching_skills || [];
@@ -167,7 +294,8 @@ Date du jour: ${today}`;
       compatibility: analysis.compatibility,
       excluded: analysis.excluded,
       deadline: analysis.deadline,
-      urgent: analysis.urgent_no_deadline
+      urgent: analysis.urgent_no_deadline,
+      isOCE
     });
     
     return new Response(
@@ -177,15 +305,26 @@ Date du jour: ${today}`;
 
   } catch (error) {
     console.error('Error in analyze-job-offer:', error);
+    
+    // Return graceful fallback instead of 500 error
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: 'Erreur lors de l\'analyse de l\'offre'
+        success: true,
+        warning: 'server_error',
+        compatibility: 50,
+        matching_skills: [],
+        missing_requirements: [],
+        keywords: '',
+        recommended_channel: 'direct',
+        required_documents: ['CV', 'Lettre de motivation'],
+        deadline: getDefaultDeadline(),
+        urgent_no_deadline: true,
+        contacts: [],
+        excluded: false,
+        exclusion_reason: null,
+        reasoning: 'Erreur serveur. Veuillez compléter les informations manuellement.'
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
