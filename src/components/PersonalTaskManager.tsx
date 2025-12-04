@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { PersonalTask } from '@/types/personalTask';
-import { CheckCircle, Circle, Plus, Trash2, Calendar as CalendarIcon, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
+import { CheckCircle, Circle, Plus, Trash2, Calendar as CalendarIcon, ExternalLink, Pencil } from 'lucide-react';
+import { format, startOfDay, isEqual, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -18,33 +19,83 @@ interface PersonalTaskManagerProps {
   onAddTask: (task: Omit<PersonalTask, 'id' | 'createdAt' | 'done'>) => void;
   onToggleTask: (id: string) => void;
   onDeleteTask: (id: string) => void;
+  onUpdateTask?: (id: string, updates: Partial<PersonalTask>) => void;
 }
 
-export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTask }: PersonalTaskManagerProps) {
+export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTask, onUpdateTask }: PersonalTaskManagerProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newTask, setNewTask] = useState({
+  const [editingTask, setEditingTask] = useState<PersonalTask | null>(null);
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
     deadline: undefined as Date | undefined,
     url: '',
   });
 
+  const resetForm = () => {
+    setFormData({ title: '', description: '', deadline: undefined, url: '' });
+    setEditingTask(null);
+  };
+
+  const openDialog = (task?: PersonalTask) => {
+    if (task) {
+      setEditingTask(task);
+      setFormData({
+        title: task.title,
+        description: task.description || '',
+        deadline: task.deadline ? parseISO(task.deadline) : undefined,
+        url: task.url || '',
+      });
+    } else {
+      resetForm();
+    }
+    setIsDialogOpen(true);
+  };
+
   const handleSubmit = () => {
-    if (!newTask.title.trim()) return;
+    if (!formData.title.trim()) return;
     
-    onAddTask({
-      title: newTask.title,
-      description: newTask.description || undefined,
-      deadline: newTask.deadline?.toISOString().split('T')[0],
-      url: newTask.url || undefined,
-    });
+    const taskData = {
+      title: formData.title,
+      description: formData.description || undefined,
+      deadline: formData.deadline?.toISOString().split('T')[0],
+      url: formData.url || undefined,
+    };
+
+    if (editingTask && onUpdateTask) {
+      onUpdateTask(editingTask.id, taskData);
+    } else {
+      onAddTask(taskData);
+    }
     
-    setNewTask({ title: '', description: '', deadline: undefined, url: '' });
+    resetForm();
     setIsDialogOpen(false);
   };
 
-  const pendingTasks = tasks.filter(t => !t.done);
-  const completedTasks = tasks.filter(t => t.done);
+  // Trier: tâches non terminées en haut, terminées en bas
+  const sortedTasks = [...tasks].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    // Ensuite par deadline (les plus proches en premier)
+    if (a.deadline && b.deadline) {
+      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+    }
+    if (a.deadline) return -1;
+    if (b.deadline) return 1;
+    return 0;
+  });
+
+  const pendingTasks = sortedTasks.filter(t => !t.done);
+  const completedTasks = sortedTasks.filter(t => t.done);
+
+  // Comparaison de dates (jour uniquement, ignore l'heure)
+  const getDeadlineStatus = (deadline: string) => {
+    const today = startOfDay(new Date());
+    const taskDate = startOfDay(parseISO(deadline));
+    
+    if (isEqual(taskDate, today)) return 'today';
+    if (taskDate < today) return 'overdue';
+    return 'future';
+  };
 
   return (
     <div className="space-y-6">
@@ -55,16 +106,19 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
             Mes tâches personnelles
           </h2>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={() => openDialog()}>
                 <Plus className="w-4 h-4" />
                 Nouvelle tâche
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Ajouter une tâche</DialogTitle>
+                <DialogTitle>{editingTask ? 'Modifier la tâche' : 'Ajouter une tâche'}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -72,8 +126,8 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
                   <Input
                     id="title"
                     placeholder="Ex: Mettre à jour LinkedIn"
-                    value={newTask.title}
-                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   />
                 </div>
                 
@@ -82,8 +136,8 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
                   <Textarea
                     id="description"
                     placeholder="Détails supplémentaires..."
-                    value={newTask.description}
-                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
                   />
                 </div>
@@ -96,18 +150,18 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !newTask.deadline && "text-muted-foreground"
+                          !formData.deadline && "text-muted-foreground"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {newTask.deadline ? format(newTask.deadline, "PPP", { locale: fr }) : "Sélectionner une date"}
+                        {formData.deadline ? format(formData.deadline, "PPP", { locale: fr }) : "Sélectionner une date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
-                        selected={newTask.deadline}
-                        onSelect={(date) => setNewTask({ ...newTask, deadline: date })}
+                        selected={formData.deadline}
+                        onSelect={(date) => setFormData({ ...formData, deadline: date })}
                         initialFocus
                         className="pointer-events-auto"
                       />
@@ -121,13 +175,13 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
                     id="url"
                     type="url"
                     placeholder="https://..."
-                    value={newTask.url}
-                    onChange={(e) => setNewTask({ ...newTask, url: e.target.value })}
+                    value={formData.url}
+                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                   />
                 </div>
                 
-                <Button onClick={handleSubmit} className="w-full" disabled={!newTask.title.trim()}>
-                  Ajouter la tâche
+                <Button onClick={handleSubmit} className="w-full" disabled={!formData.title.trim()}>
+                  {editingTask ? 'Enregistrer' : 'Ajouter la tâche'}
                 </Button>
               </div>
             </DialogContent>
@@ -155,6 +209,8 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
                       task={task}
                       onToggle={() => onToggleTask(task.id)}
                       onDelete={() => onDeleteTask(task.id)}
+                      onEdit={() => openDialog(task)}
+                      getDeadlineStatus={getDeadlineStatus}
                     />
                   ))}
                 </div>
@@ -174,6 +230,8 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
                       task={task}
                       onToggle={() => onToggleTask(task.id)}
                       onDelete={() => onDeleteTask(task.id)}
+                      onEdit={() => openDialog(task)}
+                      getDeadlineStatus={getDeadlineStatus}
                     />
                   ))}
                 </div>
@@ -186,32 +244,59 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
   );
 }
 
-function TaskCard({ task, onToggle, onDelete }: { task: PersonalTask; onToggle: () => void; onDelete: () => void }) {
+interface TaskCardProps {
+  task: PersonalTask;
+  onToggle: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  getDeadlineStatus: (deadline: string) => 'today' | 'overdue' | 'future';
+}
+
+function TaskCard({ task, onToggle, onDelete, onEdit, getDeadlineStatus }: TaskCardProps) {
+  const deadlineStatus = task.deadline ? getDeadlineStatus(task.deadline) : null;
+  
   return (
-    <Card className={cn("p-4 border", task.done && "bg-muted/30")}>
+    <Card className={cn(
+      "p-4 border transition-all",
+      task.done && "bg-muted/30 opacity-70"
+    )}>
       <div className="flex items-start gap-3">
-        <button onClick={onToggle} className="flex-shrink-0 mt-0.5">
-          {task.done ? (
-            <CheckCircle className="w-5 h-5 text-success" />
-          ) : (
-            <Circle className="w-5 h-5 text-muted-foreground hover:text-primary" />
-          )}
-        </button>
+        {/* Checkbox cliquable */}
+        <Checkbox
+          checked={task.done}
+          onCheckedChange={onToggle}
+          className="mt-1 h-5 w-5"
+        />
         
         <div className="flex-1 min-w-0">
-          <div className={cn("font-medium", task.done && "line-through text-muted-foreground")}>
+          <div className={cn(
+            "font-medium",
+            task.done && "line-through text-muted-foreground"
+          )}>
             {task.title}
           </div>
           
           {task.description && (
-            <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+            <p className={cn(
+              "text-sm mt-1",
+              task.done ? "text-muted-foreground/60" : "text-muted-foreground"
+            )}>
+              {task.description}
+            </p>
           )}
           
           <div className="flex flex-wrap items-center gap-3 mt-2">
             {task.deadline && (
-              <span className="text-xs flex items-center gap-1 text-muted-foreground">
+              <span className={cn(
+                "text-xs flex items-center gap-1 px-2 py-0.5 rounded-full",
+                deadlineStatus === 'overdue' && "bg-destructive/10 text-destructive font-medium",
+                deadlineStatus === 'today' && "bg-warning/10 text-warning font-medium",
+                deadlineStatus === 'future' && "text-muted-foreground"
+              )}>
                 <CalendarIcon className="w-3 h-3" />
-                {format(new Date(task.deadline), "d MMM yyyy", { locale: fr })}
+                {deadlineStatus === 'overdue' && '⚠️ '}
+                {deadlineStatus === 'today' && "Aujourd'hui - "}
+                {format(new Date(task.deadline + 'T00:00:00'), "d MMM yyyy", { locale: fr })}
               </span>
             )}
             
@@ -229,9 +314,15 @@ function TaskCard({ task, onToggle, onDelete }: { task: PersonalTask; onToggle: 
           </div>
         </div>
         
-        <Button variant="ghost" size="sm" onClick={onDelete}>
-          <Trash2 className="w-4 h-4 text-destructive" />
-        </Button>
+        {/* Actions */}
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={onEdit} title="Modifier">
+            <Pencil className="w-4 h-4 text-muted-foreground hover:text-primary" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDelete} title="Supprimer">
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </Button>
+        </div>
       </div>
     </Card>
   );

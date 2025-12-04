@@ -109,14 +109,7 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
       {/* HEADER */}
       <div className="flex justify-between items-start mb-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xl font-bold text-gray-900">{application.poste}</h3>
-            {application.url && (
-              <a href={application.url} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-primary transition-colors p-1" title="Voir l'annonce originale">
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            )}
-          </div>
+        <h3 className="text-xl font-bold text-gray-900">{application.poste}</h3>
           <p className="text-gray-600 font-medium">{application.entreprise} • {application.lieu}</p>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Clock className="w-3 h-3" /> Deadline : <span className={`font-semibold ${daysUntil && daysUntil <= 3 ? 'text-red-600' : 'text-gray-700'}`}>{formattedDeadline}</span>
@@ -147,6 +140,20 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
         
         {/* BARRE D'OUTILS PRODUCTIVITÉ */}
         <div className="flex flex-wrap gap-2 mt-6 justify-end bg-gray-50 p-3 rounded-lg">
+           
+           {/* Bouton 0 : Voir l'annonce (VISIBLE) */}
+           {application.url && (
+             <Button 
+               variant="outline" 
+               size="sm" 
+               asChild
+               className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+             >
+               <a href={application.url} target="_blank" rel="noopener noreferrer">
+                 <ExternalLink className="w-4 h-4" /> 👁️ Voir l'annonce
+               </a>
+             </Button>
+           )}
            
            {/* Bouton 1 : Analyse IA (Si données manquantes) */}
            <Button 
