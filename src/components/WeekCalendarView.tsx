@@ -39,22 +39,29 @@ export function WeekCalendarView({ applications, tasks }: WeekCalendarViewProps)
   const nextWeek = () => setCurrentWeekStart(addWeeks(currentWeekStart, 1));
   const goToToday = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
+  // Comparaison stricte YYYY-MM-DD (ignore timezone)
+  const isSameDayStrict = (dateStr: string, compareDate: Date): boolean => {
+    const targetStr = dateStr.split('T')[0]; // YYYY-MM-DD
+    const compareStr = format(compareDate, 'yyyy-MM-dd');
+    return targetStr === compareStr;
+  };
+
   // Build events from applications and tasks
   const getEventsForDay = (date: Date): CalendarEvent[] => {
     const events: CalendarEvent[] = [];
+    const dateStr = format(date, 'yyyy-MM-dd');
 
     // Add application deadlines
     applications.forEach(app => {
       if (!app.deadline) return;
-      const deadlineDate = new Date(app.deadline);
-      if (isSameDay(deadlineDate, date)) {
+      if (isSameDayStrict(app.deadline, date)) {
         const days = getDaysUntil(app.deadline);
         events.push({
           id: app.id,
           title: app.entreprise,
           subtitle: app.poste,
           type: 'deadline',
-          date: deadlineDate,
+          date: new Date(app.deadline + 'T12:00:00'), // Force midi pour éviter décalage
           isUrgent: days <= 3 && days >= 0,
           isOverdue: days < 0,
           url: app.url || undefined,
@@ -65,14 +72,13 @@ export function WeekCalendarView({ applications, tasks }: WeekCalendarViewProps)
     // Add personal tasks
     tasks.forEach(task => {
       if (!task.deadline) return;
-      const taskDate = new Date(task.deadline);
-      if (isSameDay(taskDate, date)) {
+      if (isSameDayStrict(task.deadline, date)) {
         events.push({
           id: task.id,
           title: task.title,
           subtitle: task.description || '',
           type: 'task',
-          date: taskDate,
+          date: new Date(task.deadline + 'T12:00:00'), // Force midi
           isUrgent: false,
           isOverdue: false,
           description: task.description,

@@ -141,19 +141,21 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
         {/* BARRE D'OUTILS PRODUCTIVITÉ */}
         <div className="flex flex-wrap gap-2 mt-6 justify-end bg-gray-50 p-3 rounded-lg">
            
-           {/* Bouton 0 : Voir l'annonce (VISIBLE) */}
-           {application.url && (
-             <Button 
-               variant="outline" 
-               size="sm" 
-               asChild
-               className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
-             >
-               <a href={application.url} target="_blank" rel="noopener noreferrer">
-                 <ExternalLink className="w-4 h-4" /> 👁️ Voir l'annonce
-               </a>
-             </Button>
-           )}
+           {/* Bouton 0 : Voir l'annonce (TOUJOURS VISIBLE) */}
+           <Button 
+             variant="outline" 
+             size="sm" 
+             className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+             onClick={() => {
+               if (application.url) {
+                 window.open(application.url, '_blank', 'noopener,noreferrer');
+               } else {
+                 toast.warning("⚠️ Aucun lien enregistré pour cette offre. Modifiez l'offre pour en ajouter un.");
+               }
+             }}
+           >
+             <ExternalLink className="w-4 h-4" /> 👁️ Voir l'annonce
+           </Button>
            
            {/* Bouton 1 : Analyse IA (Si données manquantes) */}
            <Button 
