@@ -26,13 +26,58 @@ function detectOCE(text: string): boolean {
   return patterns.some(pattern => pattern.test(text));
 }
 
+// Maximum allowed input lengths
+const MAX_JOB_DESCRIPTION_LENGTH = 50000;
+const MAX_USER_PROFILE_LENGTH = 10000;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { jobDescription, userProfile } = await req.json();
+    // Parse request body with error handling
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { jobDescription, userProfile } = requestBody;
+
+    // Type validation
+    if (jobDescription !== undefined && typeof jobDescription !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'jobDescription must be a string' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (userProfile !== undefined && typeof userProfile !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'userProfile must be a string' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Maximum length validation to prevent oversized payloads
+    if (jobDescription && jobDescription.length > MAX_JOB_DESCRIPTION_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: `Job description exceeds maximum length of ${MAX_JOB_DESCRIPTION_LENGTH} characters` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (userProfile && userProfile.length > MAX_USER_PROFILE_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: `User profile exceeds maximum length of ${MAX_USER_PROFILE_LENGTH} characters` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Handle empty or missing job description gracefully
     if (!jobDescription || jobDescription.trim().length < 20) {
