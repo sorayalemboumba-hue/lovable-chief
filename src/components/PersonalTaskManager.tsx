@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { PersonalTask } from '@/types/personalTask';
 import { CheckCircle, Circle, Plus, Trash2, Calendar as CalendarIcon, ExternalLink, Pencil } from 'lucide-react';
-import { format, startOfDay, isEqual, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -87,13 +87,13 @@ export function PersonalTaskManager({ tasks, onAddTask, onToggleTask, onDeleteTa
   const pendingTasks = sortedTasks.filter(t => !t.done);
   const completedTasks = sortedTasks.filter(t => t.done);
 
-  // Comparaison de dates (jour uniquement, ignore l'heure)
+  // Comparaison de dates (stricte YYYY-MM-DD, ignore timezone)
   const getDeadlineStatus = (deadline: string) => {
-    const today = startOfDay(new Date());
-    const taskDate = startOfDay(parseISO(deadline));
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const taskDateStr = deadline.split('T')[0]; // Format YYYY-MM-DD
     
-    if (isEqual(taskDate, today)) return 'today';
-    if (taskDate < today) return 'overdue';
+    if (taskDateStr === todayStr) return 'today';
+    if (taskDateStr < todayStr) return 'overdue';
     return 'future';
   };
 
