@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Application } from '@/types/application';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { formatDate, getDaysUntil } from '@/lib/dateUtils';
+import { getDaysUntil, matchesCalendarDay } from '@/lib/dateUtils';
 
 interface CalendarViewProps {
   applications: Application[];
@@ -27,14 +27,11 @@ export function CalendarView({ applications }: CalendarViewProps) {
 
   const weekDays = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
+  // Comparaison stricte YYYY-MM-DD (évite timezone)
   const getApplicationsForDate = (day: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return applications.filter(app => {
       if (!app.deadline) return false;
-      const appDate = new Date(app.deadline);
-      return appDate.getDate() === day && 
-             appDate.getMonth() === month && 
-             appDate.getFullYear() === year;
+      return matchesCalendarDay(app.deadline, year, month, day);
     });
   };
 
