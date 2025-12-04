@@ -10,6 +10,10 @@ import { Loader2, Database, Download } from 'lucide-react';
 const STORAGE_KEY = 'sosoflow_applications';
 
 export function SupabaseMigration() {
+  // DÉSACTIVÉ - L'utilisateur gère les données en local uniquement
+  // Pour réactiver, supprimer le return null ci-dessous
+  return null;
+  
   const [migrating, setMigrating] = useState(false);
   const [needsMigration, setNeedsMigration] = useState(false);
   const [supabaseCount, setSupabaseCount] = useState(0);
