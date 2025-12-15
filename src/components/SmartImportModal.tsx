@@ -69,8 +69,7 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
   
   // Input states
   const [textContent, setTextContent] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
-  const [sourceUrl, setSourceUrl] = useState(''); // NEW: Manual source URL
+  const [sourceUrl, setSourceUrl] = useState(''); // URL is now just for saving, not parsing
   const [emailContent, setEmailContent] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   
@@ -89,7 +88,6 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
   const resetState = () => {
     setStep('input');
     setTextContent('');
-    setLinkUrl('');
     setSourceUrl('');
     setEmailContent('');
     setPdfFile(null);
@@ -221,49 +219,49 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     setStep('review');
   };
 
-  // Handle text/link submission
+  // Handle text/link submission - REFACTORED: URL detection with text requirement
   const handleSubmitText = () => {
-    const content = textContent || linkUrl;
-    if (!content) {
-      toast.error('Veuillez entrer du contenu');
+    // Require text content for analysis (URL alone is not enough)
+    if (!textContent) {
+      toast.error('Veuillez coller le texte de l\'annonce pour lancer l\'analyse');
       return;
     }
     
-    const job = parseTextJobOffer(content);
+    const job = parseTextJobOffer(textContent);
     
     // Smart cleaning: extract company and location from "Company · Location" format
     let finalJob = job;
     if (job) {
       const cleanedTitle = cleanTitle(job.poste);
-      const detectedCompany = extractCompany(content);
-      const detectedLocation = extractLocationFromLine(content);
+      const detectedCompany = extractCompany(textContent);
+      const detectedLocation = extractLocationFromLine(textContent);
       
       finalJob = {
         ...job,
-        poste: cleanedTitle || '',
+        poste: cleanedTitle || 'Poste à définir',
         entreprise: detectedCompany || job.entreprise || '',
         lieu: detectedLocation || job.lieu || 'Suisse',
-        url: sourceUrl || linkUrl || undefined
+        url: sourceUrl || undefined
       };
     }
     
     if (finalJob) {
-      handleAnalyze([finalJob], content);
+      handleAnalyze([finalJob], textContent);
     } else {
       // Fallback: try to detect company and location from raw text
-      const detectedCompany = extractCompany(content);
-      const detectedLocation = extractLocationFromLine(content);
+      const detectedCompany = extractCompany(textContent);
+      const detectedLocation = extractLocationFromLine(textContent);
       
       handleAnalyze([{
         entreprise: detectedCompany || '',
-        poste: '',
+        poste: 'Poste à définir',
         lieu: detectedLocation || 'Suisse',
         canal: 'direct',
         source: 'Texte',
-        motsCles: content.substring(0, 200),
-        description: content,
-        url: sourceUrl || linkUrl || undefined
-      }], content);
+        motsCles: textContent.substring(0, 200),
+        description: textContent,
+        url: sourceUrl || undefined
+      }], textContent);
     }
   };
 
@@ -580,22 +578,6 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
         {/* STEP 1: Input */}
         {step === 'input' && (
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            {/* NEW: Global Source URL Field */}
-            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <label className="block text-sm font-medium text-blue-800 mb-2">
-                🔗 Lien de l'annonce (prioritaire)
-              </label>
-              <Input
-                value={sourceUrl}
-                onChange={(e) => setSourceUrl(e.target.value)}
-                placeholder="https://linkedin.com/jobs/view/... ou autre URL"
-                className="bg-white"
-              />
-              <p className="text-xs text-blue-600 mt-1">
-                Ce lien sera sauvegardé même si aucun lien n'est extrait du contenu.
-              </p>
-            </div>
-            
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="text" className="gap-2 text-xs sm:text-sm">
@@ -616,31 +598,65 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
                 </TabsTrigger>
               </TabsList>
 
+              {/* TEXT/URL IMPORT TAB - Intelligent dual-mode */}
               <TabsContent value="text" className="space-y-4 mt-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    🔗 Lien de l'annonce (LinkedIn, JobUp, CAGI...)
-                  </label>
-                  <Input
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    placeholder="https://linkedin.com/jobs/view/..."
-                    className="mb-4"
-                  />
-                  
-                  <label className="block text-sm font-medium mb-2">
-                    📝 Ou collez le texte de l'annonce
+                {/* STEP 1A: URL Detection Mode */}
+                {!textContent && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-primary/5 rounded-lg border-2 border-primary/20">
+                      <label className="block text-sm font-semibold text-primary mb-2">
+                        🔗 Étape 1 : Collez le lien de l'annonce
+                      </label>
+                      <Input
+                        value={sourceUrl}
+                        onChange={(e) => setSourceUrl(e.target.value)}
+                        placeholder="https://linkedin.com/jobs/view/... ou autre URL"
+                        className="bg-white"
+                      />
+                      {sourceUrl && sourceUrl.startsWith('http') && (
+                        <div className="mt-3 p-3 bg-success/10 rounded border border-success/30">
+                          <p className="text-sm text-success font-medium flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            ✅ Lien sauvegardé !
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Maintenant, copiez-collez le <strong>TEXTE</strong> de l'annonce ci-dessous pour l'analyse.
+                            <br />
+                            <span className="text-warning">(Les sites comme LinkedIn/JobUp ne peuvent pas être scrapés automatiquement)</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {!sourceUrl && (
+                      <div className="text-center py-4 text-muted-foreground text-sm">
+                        — OU —
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* STEP 1B: Text Content for Analysis */}
+                <div className={sourceUrl && !textContent ? 'animate-pulse' : ''}>
+                  <label className="block text-sm font-semibold mb-2">
+                    📝 {sourceUrl ? 'Étape 2 : ' : ''}Collez le texte de l'annonce
                   </label>
                   <Textarea
                     value={textContent}
                     onChange={(e) => setTextContent(e.target.value)}
-                    placeholder="Collez ici la description complète du poste..."
+                    placeholder="Copiez-collez ici la description complète du poste depuis la page de l'annonce..."
                     className="min-h-[200px]"
                   />
+                  {!textContent && sourceUrl && (
+                    <p className="text-xs text-warning mt-2">
+                      ⚠️ Sans le texte de l'annonce, l'analyse IA ne pourra pas détecter l'entreprise, le poste, ni les compétences.
+                    </p>
+                  )}
                 </div>
+                
                 <Button 
                   onClick={handleSubmitText}
-                  disabled={!textContent && !linkUrl}
+                  disabled={!textContent}
                   className="w-full gap-2"
                   size="lg"
                 >
