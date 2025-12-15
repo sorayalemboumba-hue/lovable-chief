@@ -5,6 +5,7 @@ export interface ParsedJob {
   canal: string;
   motsCles?: string;
   source: string;
+  url?: string; // URL extracted from HTML links
   exclusionFlags?: {
     isStage: boolean;
     isOutsideGEVD: boolean;

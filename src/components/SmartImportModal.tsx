@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Application } from '@/types/application';
 import { parseJobAlert, ParsedJob } from '@/lib/emailParser';
+import { parseHtmlEmailContent, htmlToCleanText } from '@/lib/htmlEmailParser';
 import { parseTextJobOffer } from '@/lib/textJobParser';
 import { parsePDFFile } from '@/lib/pdfParser';
 import { cleanEmailContent, extractJobContent } from '@/lib/emailCleaner';
@@ -14,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { RichTextPaste } from '@/components/ui/RichTextPaste';
 import { 
   FileText, Mail, Link as LinkIcon, Sparkles, AlertTriangle, 
   CheckCircle, XCircle, Loader2, MapPin, Languages, GraduationCap,
@@ -235,27 +237,47 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
     }
   };
 
-  // Handle email submission - with cleaning
+  // Handle email submission - with HTML parsing for links
   const handleSubmitEmail = () => {
     if (!emailContent) {
       toast.error('Veuillez coller le contenu de l\'email');
       return;
     }
     
-    // Clean the email content first
-    const cleanedContent = extractJobContent(emailContent);
-    console.log('Cleaned email content:', cleanedContent.substring(0, 200));
+    // Check if content contains HTML tags (indicates rich paste)
+    const isHtmlContent = /<[a-z][\s\S]*>/i.test(emailContent);
     
-    const jobs = parseJobAlert(cleanedContent);
+    let jobs: (ParsedJob & { url?: string })[] = [];
+    
+    if (isHtmlContent) {
+      // Use HTML parser to extract jobs with links
+      console.log('Parsing HTML email content...');
+      jobs = parseHtmlEmailContent(emailContent);
+      
+      if (jobs.length > 0) {
+        const linksCount = jobs.filter(j => (j as any).url).length;
+        toast.success(`${jobs.length} offre(s) détectée(s) dont ${linksCount} avec lien`);
+      }
+    }
+    
+    // Fallback to text parsing if no HTML jobs found
+    if (jobs.length === 0) {
+      const cleanedContent = isHtmlContent ? htmlToCleanText(emailContent) : extractJobContent(emailContent);
+      console.log('Fallback to text parsing:', cleanedContent.substring(0, 200));
+      
+      jobs = parseJobAlert(cleanedContent);
+    }
+    
     if (jobs.length > 0) {
       handleAnalyze(jobs);
     } else {
-      // Try to parse as raw text if no jobs detected
+      // Try to parse as single job offer
+      const cleanedContent = isHtmlContent ? htmlToCleanText(emailContent) : emailContent;
       const job = parseTextJobOffer(cleanedContent);
       if (job) {
         handleAnalyze([job]);
       } else {
-        toast.error('Aucune offre détectée dans l\'email');
+        toast.error('Aucune offre détectée. Essayez de coller le texte brut.');
       }
     }
   };
@@ -565,11 +587,13 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
                 <label className="block text-sm font-medium mb-2">
                   📧 Collez le contenu de l'email d'alerte emploi
                 </label>
-                <Textarea
+                <p className="text-xs text-muted-foreground mb-2">
+                  💡 Les liens (Postuler, Voir l'offre...) seront automatiquement extraits
+                </p>
+                <RichTextPaste
                   value={emailContent}
-                  onChange={(e) => setEmailContent(e.target.value)}
-                  placeholder="Collez l'email complet (LinkedIn, JobUp, Indeed...)"
-                  className="min-h-[250px]"
+                  onChange={setEmailContent}
+                  placeholder="Collez l'email complet avec ses liens (LinkedIn, JobUp, Indeed...)"
                 />
               </div>
               <Button 
@@ -579,7 +603,7 @@ export function SmartImportModal({ open, onClose, onImport }: SmartImportModalPr
                 size="lg"
               >
                 <Sparkles className="w-4 h-4" />
-                Analyser les offres
+                Analyser les offres ({emailContent ? 'HTML' : '...'})
               </Button>
             </TabsContent>
 
