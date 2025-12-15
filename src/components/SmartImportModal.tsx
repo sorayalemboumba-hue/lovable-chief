@@ -5,7 +5,7 @@ import { parseHtmlEmailContent, htmlToCleanText } from '@/lib/htmlEmailParser';
 import { parseTextJobOffer } from '@/lib/textJobParser';
 import { parsePDFFile } from '@/lib/pdfParser';
 import { extractJobContent } from '@/lib/emailCleaner';
-import { analyzeJobText, checkDuplicate, cleanTitle, extractCompany, SmartAnalysisResult } from '@/lib/smartTextAnalyzer';
+import { analyzeJobText, checkDuplicate, cleanTitle, extractCompany, extractLocationFromLine, SmartAnalysisResult } from '@/lib/smartTextAnalyzer';
 import { supabase } from '@/integrations/supabase/client';
 import { evaluateExclusionRules, shouldExcludeOffer, getExclusionReason, ExclusionFlags } from '@/lib/exclusionRules';
 import { Button } from '@/components/ui/button';
@@ -231,16 +231,18 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     
     const job = parseTextJobOffer(content);
     
-    // Smart cleaning: if title is a URL, try to extract company from text
+    // Smart cleaning: extract company and location from "Company · Location" format
     let finalJob = job;
     if (job) {
       const cleanedTitle = cleanTitle(job.poste);
       const detectedCompany = extractCompany(content);
+      const detectedLocation = extractLocationFromLine(content);
       
       finalJob = {
         ...job,
-        poste: cleanedTitle || 'Nouveau Poste',
+        poste: cleanedTitle || '',
         entreprise: detectedCompany || job.entreprise || '',
+        lieu: detectedLocation || job.lieu || 'Suisse',
         url: sourceUrl || linkUrl || undefined
       };
     }
@@ -248,13 +250,14 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     if (finalJob) {
       handleAnalyze([finalJob], content);
     } else {
-      // Fallback: try to detect company from raw text
+      // Fallback: try to detect company and location from raw text
       const detectedCompany = extractCompany(content);
+      const detectedLocation = extractLocationFromLine(content);
       
       handleAnalyze([{
         entreprise: detectedCompany || '',
         poste: '',
-        lieu: 'Suisse',
+        lieu: detectedLocation || 'Suisse',
         canal: 'direct',
         source: 'Texte',
         motsCles: content.substring(0, 200),

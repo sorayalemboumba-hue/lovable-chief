@@ -6,16 +6,16 @@ import { format, addDays, subDays, parseISO } from 'date-fns';
  * Generate automatic tasks based on application events
  */
 
-// Create "Envoyer candidature" task for day before deadline
+// Create "Postuler [Entreprise]" task for J-2 before deadline
 export function createDeadlineTask(app: Application): Omit<PersonalTask, 'id' | 'createdAt' | 'done'> | null {
   if (!app.deadline || app.deadlineMissing) return null;
   
   const deadlineDate = parseISO(app.deadline.split('T')[0]);
-  const taskDate = subDays(deadlineDate, 1);
+  const taskDate = subDays(deadlineDate, 2); // Changed from 1 to 2 (J-2)
   
   return {
-    title: `Envoyer candidature ${app.entreprise || 'Entreprise'}`,
-    description: `Deadline: ${format(deadlineDate, 'dd/MM/yyyy')} - Poste: ${app.poste}`,
+    title: `Postuler ${app.entreprise || 'Entreprise'}`,
+    description: `⚠️ Deadline: ${format(deadlineDate, 'dd/MM/yyyy')} - Poste: ${app.poste}`,
     deadline: format(taskDate, 'yyyy-MM-dd'),
     url: app.url || app.sourceUrl,
   };
