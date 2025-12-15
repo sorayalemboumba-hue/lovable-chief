@@ -29,9 +29,10 @@ interface ApplicationCardProps {
   onGenerateCV?: () => void;
   onGenerateLetter?: () => void;
   onUpdate: (updates: Partial<Application>) => void;
+  isArchived?: boolean;
 }
 
-export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: ApplicationCardProps) {
+export function ApplicationCard({ application, onEdit, onDelete, onUpdate, isArchived }: ApplicationCardProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState("");
@@ -202,11 +203,13 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
   return (
     <>
       <Card className={`p-6 mb-4 hover:shadow-lg transition-all border-l-4 relative ${
-        isExpired 
-          ? 'border-l-gray-400 bg-gray-50 opacity-75' 
-          : isUrgent 
-            ? 'border-l-red-500 bg-red-50/30' 
-            : 'border-l-primary bg-white'
+        isArchived
+          ? 'border-l-gray-300 bg-gray-100/80 opacity-60'
+          : isExpired 
+            ? 'border-l-gray-400 bg-gray-50 opacity-75' 
+            : isUrgent 
+              ? 'border-l-red-500 bg-red-50/30' 
+              : 'border-l-primary bg-white'
       }`}>
         {/* HEADER - Restructured */}
         <div className="flex justify-between items-start mb-4">

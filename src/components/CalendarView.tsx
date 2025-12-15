@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Application } from '@/types/application';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { getDaysUntil, matchesCalendarDay } from '@/lib/dateUtils';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, ExternalLink } from 'lucide-react';
+import { getDaysUntil, matchesCalendarDay, formatDateDisplay } from '@/lib/dateUtils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface CalendarViewProps {
   applications: Application[];
+  onSelectApplication?: (app: Application) => void;
 }
 
-export function CalendarView({ applications }: CalendarViewProps) {
+export function CalendarView({ applications, onSelectApplication }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -48,6 +51,13 @@ export function CalendarView({ applications }: CalendarViewProps) {
     return day === today.getDate() && 
            month === today.getMonth() && 
            year === today.getFullYear();
+  };
+
+  const handleAppClick = (app: Application) => {
+    setSelectedApp(app);
+    if (onSelectApplication) {
+      onSelectApplication(app);
+    }
   };
 
   return (
@@ -106,17 +116,18 @@ export function CalendarView({ applications }: CalendarViewProps) {
                       const isOverdue = days < 0;
                       
                       return (
-                        <div
+                        <button
                           key={app.id}
-                          className={`text-xs p-1 rounded truncate ${
-                            isOverdue ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-                            isUrgent ? 'bg-warning/10 text-warning border border-warning/20' :
+                          onClick={() => handleAppClick(app)}
+                          className={`w-full text-left text-xs p-1 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
+                            isOverdue ? 'bg-destructive/20 text-destructive border border-destructive/30' :
+                            isUrgent ? 'bg-warning/20 text-warning-foreground border border-warning/30' :
                             'bg-success/10 text-success border border-success/20'
                           }`}
                           title={`${app.poste} - ${app.entreprise}`}
                         >
                           {app.entreprise}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -131,11 +142,11 @@ export function CalendarView({ applications }: CalendarViewProps) {
         <h3 className="font-semibold mb-4">Légende</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-destructive/10 border border-destructive/20" />
+            <div className="w-4 h-4 rounded bg-destructive/20 border border-destructive/30" />
             <span className="text-sm">En retard</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-warning/10 border border-warning/20" />
+            <div className="w-4 h-4 rounded bg-warning/20 border border-warning/30" />
             <span className="text-sm">Urgent (≤3 jours)</span>
           </div>
           <div className="flex items-center gap-2">
@@ -144,6 +155,52 @@ export function CalendarView({ applications }: CalendarViewProps) {
           </div>
         </div>
       </Card>
+
+      {/* Dialog to show application details */}
+      <Dialog open={!!selectedApp} onOpenChange={() => setSelectedApp(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-primary" />
+              Détails de l'offre
+            </DialogTitle>
+          </DialogHeader>
+          {selectedApp && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Entreprise</p>
+                <p className="font-semibold text-lg">{selectedApp.entreprise}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Poste</p>
+                <p className="font-medium">{selectedApp.poste}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Lieu</p>
+                <p>{selectedApp.lieu}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Deadline</p>
+                <p className="font-medium text-destructive">{formatDateDisplay(selectedApp.deadline)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase">Statut</p>
+                <p className="capitalize">{selectedApp.statut}</p>
+              </div>
+              {(selectedApp.url || selectedApp.sourceUrl) && (
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => window.open(selectedApp.url || selectedApp.sourceUrl, '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Voir l'annonce
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
