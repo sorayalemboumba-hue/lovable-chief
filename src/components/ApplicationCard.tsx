@@ -211,24 +211,24 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
               ? 'border-l-red-500 bg-red-50/30' 
               : 'border-l-primary bg-white'
       }`}>
-        {/* HEADER - Restructured */}
+        {/* HEADER - LinkedIn Style (Company first, then Title) */}
         <div className="flex justify-between items-start mb-4">
           <div className="space-y-1">
-            {/* Line 1: Company Name (Bold, Uppercase) - Only if valid */}
+            {/* Line 1: Company Name (Small, Bold, Dark Gray) - Only if valid */}
             {hasValidCompany && (
-              <p className={`text-sm font-bold uppercase tracking-wide ${isExpired ? 'text-gray-400' : 'text-primary'}`}>
+              <p className={`text-xs font-bold uppercase tracking-wider ${isExpired ? 'text-muted-foreground/60' : 'text-muted-foreground'}`}>
                 {application.entreprise}
               </p>
             )}
             
-            {/* Line 2: Job Title (H3, prominent) */}
-            <h3 className={`text-xl font-bold ${isExpired ? 'text-gray-500' : 'text-gray-900'}`}>
-              {hasValidTitle ? displayTitle : <span className="text-gray-400 italic">Titre à compléter</span>}
+            {/* Line 2: Job Title (Large, Black, prominent) */}
+            <h3 className={`text-xl font-bold leading-tight ${isExpired ? 'text-muted-foreground/70' : 'text-foreground'}`}>
+              {hasValidTitle ? displayTitle : <span className="text-destructive/70 italic">Titre à compléter</span>}
             </h3>
             
-            {/* Line 3: Location - Only if valid (no placeholder) */}
+            {/* Line 3: Location - Only if valid (empty if placeholder) */}
             {hasValidLocation && (
-              <p className={`text-sm ${isExpired ? 'text-gray-400' : 'text-gray-600'}`}>
+              <p className={`text-sm ${isExpired ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
                 📍 {application.lieu}
               </p>
             )}
@@ -251,7 +251,7 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
                 </Badge>
               )}
               
-              {/* ALERT: Missing deadline */}
+              {/* ALERT: Missing deadline - RED visible button */}
               {deadlineMissing && !isExpired && (
                 <>
                   {showDeadlineInput ? (
@@ -260,12 +260,12 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
                         type="date"
                         value={newDeadline}
                         onChange={(e) => setNewDeadline(e.target.value)}
-                        className="h-7 w-36 text-xs"
+                        className="h-8 w-40 text-sm border-destructive"
                       />
-                      <Button size="sm" variant="ghost" onClick={handleAddDeadline} className="h-7 px-2">
-                        ✓
+                      <Button size="sm" variant="default" onClick={handleAddDeadline} className="h-8 px-3">
+                        ✓ OK
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setShowDeadlineInput(false)} className="h-7 px-2">
+                      <Button size="sm" variant="ghost" onClick={() => setShowDeadlineInput(false)} className="h-8 px-2">
                         ✕
                       </Button>
                     </div>
@@ -273,11 +273,11 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
                     <Button 
                       variant="destructive" 
                       size="sm" 
-                      className="h-6 text-xs gap-1 animate-pulse"
+                      className="h-7 text-xs gap-1 font-bold shadow-md"
                       onClick={() => setShowDeadlineInput(true)}
                     >
-                      <CalendarPlus className="w-3 h-3" />
-                      ⚠️ Ajouter Deadline
+                      <CalendarPlus className="w-4 h-4" />
+                      ⚠️ Définir date
                     </Button>
                   )}
                 </>
