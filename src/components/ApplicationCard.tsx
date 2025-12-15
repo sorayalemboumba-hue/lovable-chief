@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Application } from "@/types/application";
 import { BriefCandidature } from "./BriefCandidature";
 import { formatDateDisplay, getDaysUntil } from "@/lib/dateUtils";
-import { AlertTriangle, Clock, Ban, ExternalLink, Sparkles, Copy, FileText, Edit, Trash2, X } from "lucide-react";
+import { 
+  AlertTriangle, Clock, Ban, ExternalLink, Sparkles, Copy, FileText, 
+  Edit, Trash2, X, CalendarPlus, Mail, FormInput, Zap, HelpCircle,
+  User, Globe
+} from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 interface ApplicationCardProps {
   application: Application;
@@ -30,19 +35,61 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState("");
+  const [showDeadlineInput, setShowDeadlineInput] = useState(false);
+  const [newDeadline, setNewDeadline] = useState("");
 
-  // 1. Calculs Dates & Coaching (SANS conversion timezone)
+  // Date calculations
   const daysUntil = application.deadline ? getDaysUntil(application.deadline) : null;
   const formattedDeadline = formatDateDisplay(application.deadline || '');
+  const isExpired = application.isExpired || (daysUntil !== null && daysUntil < 0);
+  const isUrgent = daysUntil !== null && daysUntil >= 0 && daysUntil <= 2;
+  const deadlineMissing = application.deadlineMissing || !application.deadline;
+
+  // Application method icon
+  const getMethodIcon = () => {
+    switch (application.applicationMethod) {
+      case 'Email': return <Mail className="w-3 h-3" />;
+      case 'Formulaire': return <FormInput className="w-3 h-3" />;
+      case 'Simplifiée': return <Zap className="w-3 h-3" />;
+      default: return <HelpCircle className="w-3 h-3" />;
+    }
+  };
+
+  // Language flag
+  const getLanguageFlag = () => {
+    switch (application.language) {
+      case 'Français': return '🇫🇷';
+      case 'Anglais': return '🇬🇧';
+      case 'Allemand': return '🇩🇪';
+      default: return '🌐';
+    }
+  };
 
   const getCoachingBanner = () => {
-    if (application.excluded) return <div className="bg-red-100 p-3 rounded-md flex items-center gap-2 text-red-800 font-bold mb-4"><Ban className="w-5 h-5" /> ⛔ OFFRE EXCLUE : {application.exclusion_reason}</div>;
-    if (daysUntil !== null && daysUntil <= 3 && daysUntil >= 0) return <div className="bg-orange-100 p-3 rounded-md flex items-center gap-2 text-orange-800 font-bold mb-4"><Clock className="w-5 h-5" /> ⚡ URGENT J-{daysUntil} : Bloquer 30min maintenant !</div>;
-    if ((application.compatibility ?? 100) < 70) return <div className="bg-blue-50 p-3 rounded-md flex items-center gap-2 text-blue-800 text-sm mb-4"><AlertTriangle className="w-4 h-4" /> 🎯 Match moyen ({application.compatibility}%) : Personnalisation forte requise</div>;
+    if (application.excluded) {
+      return (
+        <div className="bg-red-100 p-3 rounded-md flex items-center gap-2 text-red-800 font-bold mb-4">
+          <Ban className="w-5 h-5" /> ⛔ OFFRE EXCLUE : {application.exclusion_reason}
+        </div>
+      );
+    }
+    if (isUrgent && !isExpired) {
+      return (
+        <div className="bg-orange-100 p-3 rounded-md flex items-center gap-2 text-orange-800 font-bold mb-4">
+          <Clock className="w-5 h-5" /> ⚡ URGENT {daysUntil === 0 ? "AUJOURD'HUI" : `J-${daysUntil}`} : Bloquer 30min maintenant !
+        </div>
+      );
+    }
+    if ((application.compatibility ?? 100) < 70) {
+      return (
+        <div className="bg-blue-50 p-3 rounded-md flex items-center gap-2 text-blue-800 text-sm mb-4">
+          <AlertTriangle className="w-4 h-4" /> 🎯 Match moyen ({application.compatibility}%) : Personnalisation forte requise
+        </div>
+      );
+    }
     return null;
   };
 
-  // 2. Fonction Analyse IA (Restauration)
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
@@ -74,7 +121,6 @@ export function ApplicationCard({ application, onEdit, onDelete, onUpdate }: App
     }
   };
 
-  // 1. GÉNÉRATEUR DE BRIEFING STRATÉGIQUE (Pour ChatGPT)
   const generateChatGPTPrompt = () => {
     return `🔴 BRIEFING MISSION POUR LE GPT "RÉDACTEUR SORAYA" :
 
@@ -93,7 +139,6 @@ Rédige une lettre de motivation "Executive" et un Profil CV sur-mesure.
 Stratégie : Utilise mon style (Storytelling engagé) et appuie sur mes atouts pour compenser les points de vigilance cités ci-dessus.`;
   };
 
-  // 2. GÉNÉRATEUR DE KIT D'ASSEMBLAGE (Pour Canva)
   const generateCanvaBrief = () => {
     return `🎨 KIT D'ASSEMBLAGE POUR CANVA (Copier-Coller) :
 
@@ -128,21 +173,99 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
     }
   };
 
+  const handleAddDeadline = () => {
+    if (newDeadline) {
+      onUpdate({ 
+        deadline: newDeadline, 
+        deadlineMissing: false 
+      });
+      setShowDeadlineInput(false);
+      setNewDeadline("");
+      toast.success("✅ Deadline ajoutée !");
+    }
+  };
+
   return (
     <>
-      <Card className="p-6 mb-4 hover:shadow-lg transition-all border-l-4 border-l-primary relative bg-white">
+      <Card className={`p-6 mb-4 hover:shadow-lg transition-all border-l-4 relative ${
+        isExpired 
+          ? 'border-l-gray-400 bg-gray-50 opacity-75' 
+          : isUrgent 
+            ? 'border-l-red-500 bg-red-50/30' 
+            : 'border-l-primary bg-white'
+      }`}>
         {/* HEADER */}
         <div className="flex justify-between items-start mb-4">
           <div className="space-y-1">
-          <h3 className="text-xl font-bold text-gray-900">{application.poste}</h3>
-            <p className="text-gray-600 font-medium">{application.entreprise} • {application.lieu}</p>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Clock className="w-3 h-3" /> Deadline : <span className={`font-semibold ${daysUntil && daysUntil <= 3 ? 'text-red-600' : 'text-gray-700'}`}>{formattedDeadline}</span>
+            <h3 className={`text-xl font-bold ${isExpired ? 'text-gray-500' : 'text-gray-900'}`}>
+              {application.poste}
+            </h3>
+            <p className={`font-medium ${isExpired ? 'text-gray-400' : 'text-gray-600'}`}>
+              {application.entreprise} • {application.lieu}
+            </p>
+            
+            {/* Deadline display with alerts */}
+            <div className="flex items-center gap-2 text-sm">
+              <Clock className="w-3 h-3 text-gray-400" />
+              
+              {/* ALERT: Expired */}
+              {isExpired && (
+                <Badge variant="secondary" className="bg-gray-200 text-gray-600 gap-1">
+                  Expirée
+                </Badge>
+              )}
+              
+              {/* ALERT: Urgent (J-1 or Today) */}
+              {isUrgent && !isExpired && (
+                <Badge variant="destructive" className="gap-1 animate-pulse">
+                  ⚠️ {daysUntil === 0 ? "Aujourd'hui" : daysUntil === 1 ? "J-1" : `J-${daysUntil}`}
+                </Badge>
+              )}
+              
+              {/* ALERT: Missing deadline */}
+              {deadlineMissing && !isExpired && (
+                <>
+                  {showDeadlineInput ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={newDeadline}
+                        onChange={(e) => setNewDeadline(e.target.value)}
+                        className="h-7 w-36 text-xs"
+                      />
+                      <Button size="sm" variant="ghost" onClick={handleAddDeadline} className="h-7 px-2">
+                        ✓
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowDeadlineInput(false)} className="h-7 px-2">
+                        ✕
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      className="h-6 text-xs gap-1 animate-pulse"
+                      onClick={() => setShowDeadlineInput(true)}
+                    >
+                      <CalendarPlus className="w-3 h-3" />
+                      ⚠️ Ajouter Deadline
+                    </Button>
+                  )}
+                </>
+              )}
+              
+              {/* Normal deadline display */}
+              {!deadlineMissing && !isUrgent && !isExpired && (
+                <span className="text-gray-700 font-semibold">{formattedDeadline}</span>
+              )}
             </div>
           </div>
+          
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
-              <Badge variant={application.statut === 'soumise' ? "default" : "outline"}>{application.statut.toUpperCase()}</Badge>
+              <Badge variant={application.statut === 'soumise' ? "default" : "outline"}>
+                {application.statut.toUpperCase()}
+              </Badge>
               <Button variant="ghost" size="icon" onClick={onEdit} title="Modifier">
                 <Edit className="w-4 h-4" />
               </Button>
@@ -154,60 +277,98 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
           </div>
         </div>
 
+        {/* NEW: Required Documents & Application Method Badges */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {/* Required Documents */}
+          {application.requiredDocuments && application.requiredDocuments.length > 0 && (
+            application.requiredDocuments.map((doc, i) => (
+              <Badge key={i} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+                📄 {doc}
+              </Badge>
+            ))
+          )}
+          
+          {/* Application Method */}
+          {application.applicationMethod && application.applicationMethod !== 'Inconnu' && (
+            <Badge variant="outline" className="text-xs bg-purple-50 border-purple-200 text-purple-700 gap-1">
+              {getMethodIcon()} {application.applicationMethod}
+            </Badge>
+          )}
+        </div>
+
         {/* BANNIÈRE COACHING */}
         {getCoachingBanner()}
 
         {/* CONTENU & ACTIONS */}
         <div className="mt-4 pt-4 border-t border-gray-100">
-          
-          {/* Intégration du Brief (Détails) */}
           <BriefCandidature application={application} />
+          
+          {/* NEW: Contact & Language Footer */}
+          <div className="flex items-center justify-between text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-4">
+              {application.contactPerson && (
+                <span className="flex items-center gap-1">
+                  <User className="w-3 h-3" /> {application.contactPerson}
+                </span>
+              )}
+              {application.language && (
+                <span className="flex items-center gap-1">
+                  <Globe className="w-3 h-3" /> {getLanguageFlag()} {application.language}
+                </span>
+              )}
+            </div>
+            {application.sourceUrl && (
+              <a 
+                href={application.sourceUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary hover:underline flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> Source
+              </a>
+            )}
+          </div>
           
           {/* BARRE D'OUTILS PRODUCTIVITÉ */}
           <div className="flex flex-wrap gap-2 mt-6 justify-end bg-gray-50 p-3 rounded-lg">
-             
-             {/* Bouton 0 : Voir l'annonce (TOUJOURS VISIBLE) */}
-             <Button 
-               variant="outline" 
-               size="sm" 
-               className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
-               onClick={() => {
-                 if (application.url) {
-                   window.open(application.url, '_blank', 'noopener,noreferrer');
-                 } else {
-                   toast.warning("⚠️ Aucun lien enregistré pour cette offre. Modifiez l'offre pour en ajouter un.");
-                 }
-               }}
-             >
-               <ExternalLink className="w-4 h-4" /> 👁️ Voir l'annonce
-             </Button>
-             
-             {/* Bouton 1 : Analyse IA (Si données manquantes) */}
-             <Button 
-               variant="ghost" 
-               size="sm" 
-               onClick={handleAnalyze} 
-               disabled={isAnalyzing}
-               className="text-gray-600 hover:text-primary hover:bg-primary/10"
-             >
-               {isAnalyzing ? <span className="animate-spin mr-2">⏳</span> : <Sparkles className="w-4 h-4 mr-2" />} 
-               {application.keywords ? "Ré-analyser" : "Lancer Analyse IA"}
-             </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+              onClick={() => {
+                const url = application.sourceUrl || application.url;
+                if (url) {
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                } else {
+                  toast.warning("⚠️ Aucun lien enregistré pour cette offre. Modifiez l'offre pour en ajouter un.");
+                }
+              }}
+            >
+              <ExternalLink className="w-4 h-4" /> 👁️ Voir l'annonce
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleAnalyze} 
+              disabled={isAnalyzing}
+              className="text-gray-600 hover:text-primary hover:bg-primary/10"
+            >
+              {isAnalyzing ? <span className="animate-spin mr-2">⏳</span> : <Sparkles className="w-4 h-4 mr-2" />} 
+              {application.keywords ? "Ré-analyser" : "Lancer Analyse IA"}
+            </Button>
 
-             {/* Bouton 2 : Ouvrir Prompt ChatGPT */}
-             <Button variant="outline" size="sm" onClick={openChatGPTPreview} className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-               <Copy className="w-4 h-4" /> Prompt ChatGPT
-             </Button>
+            <Button variant="outline" size="sm" onClick={openChatGPTPreview} className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+              <Copy className="w-4 h-4" /> Prompt ChatGPT
+            </Button>
 
-             {/* Bouton 3 : Ouvrir Brief Canva */}
-             <Button variant="outline" size="sm" onClick={openCanvaPreview} className="gap-2 border-pink-200 text-pink-700 hover:bg-pink-50">
-               <FileText className="w-4 h-4" /> Brief Canva
-             </Button>
-             
-             {/* Bouton 4 : Valider */}
-             <Button size="sm" onClick={() => onUpdate({ statut: 'soumise' })} className="gap-2 ml-2">
-               ✅ Marquer envoyée
-             </Button>
+            <Button variant="outline" size="sm" onClick={openCanvaPreview} className="gap-2 border-pink-200 text-pink-700 hover:bg-pink-50">
+              <FileText className="w-4 h-4" /> Brief Canva
+            </Button>
+            
+            <Button size="sm" onClick={() => onUpdate({ statut: 'soumise' })} className="gap-2 ml-2">
+              ✅ Marquer envoyée
+            </Button>
           </div>
         </div>
       </Card>
