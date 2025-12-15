@@ -1,5 +1,7 @@
 export type ApplicationStatus = "à compléter" | "en cours" | "soumise" | "entretien";
 export type ApplicationType = "standard" | "spontanée" | "recommandée" | "oce";
+export type ApplicationMethod = "Email" | "Formulaire" | "Simplifiée" | "Inconnu";
+export type OfferLanguage = "Français" | "Anglais" | "Allemand";
 
 export interface Application {
   id: string;
@@ -33,6 +35,13 @@ export interface Application {
   urgent_no_deadline?: boolean;
   excluded?: boolean;
   exclusion_reason?: string;
+  // NEW FIELDS - Major Update
+  applicationMethod?: ApplicationMethod;
+  contactPerson?: string;
+  isExpired?: boolean;
+  language?: OfferLanguage;
+  deadlineMissing?: boolean;
+  sourceUrl?: string;
 }
 
 export interface Contact {
