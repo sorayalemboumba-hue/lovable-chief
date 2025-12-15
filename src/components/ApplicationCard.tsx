@@ -185,6 +185,20 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
     }
   };
 
+  // Helper: Check if title is a URL (starts with http)
+  const displayTitle = application.poste?.startsWith('http') ? '' : application.poste;
+  const hasValidTitle = displayTitle && displayTitle.trim() !== '';
+  
+  // Helper: Check if location is valid (not placeholder)
+  const placeholderLocations = ['à déterminer', 'inconnu', 'unknown', 'n/a', 'tbd', ''];
+  const hasValidLocation = application.lieu && !placeholderLocations.includes(application.lieu.toLowerCase().trim());
+  
+  // Helper: Check if company is valid
+  const hasValidCompany = application.entreprise && application.entreprise.trim() !== '';
+  
+  // Check if any required field is incomplete
+  const isIncomplete = !hasValidTitle || !hasValidCompany;
+
   return (
     <>
       <Card className={`p-6 mb-4 hover:shadow-lg transition-all border-l-4 relative ${
@@ -194,18 +208,30 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
             ? 'border-l-red-500 bg-red-50/30' 
             : 'border-l-primary bg-white'
       }`}>
-        {/* HEADER */}
+        {/* HEADER - Restructured */}
         <div className="flex justify-between items-start mb-4">
           <div className="space-y-1">
+            {/* Line 1: Company Name (Bold, Uppercase) - Only if valid */}
+            {hasValidCompany && (
+              <p className={`text-sm font-bold uppercase tracking-wide ${isExpired ? 'text-gray-400' : 'text-primary'}`}>
+                {application.entreprise}
+              </p>
+            )}
+            
+            {/* Line 2: Job Title (H3, prominent) */}
             <h3 className={`text-xl font-bold ${isExpired ? 'text-gray-500' : 'text-gray-900'}`}>
-              {application.poste}
+              {hasValidTitle ? displayTitle : <span className="text-gray-400 italic">Titre à compléter</span>}
             </h3>
-            <p className={`font-medium ${isExpired ? 'text-gray-400' : 'text-gray-600'}`}>
-              {application.entreprise} • {application.lieu}
-            </p>
+            
+            {/* Line 3: Location - Only if valid (no placeholder) */}
+            {hasValidLocation && (
+              <p className={`text-sm ${isExpired ? 'text-gray-400' : 'text-gray-600'}`}>
+                📍 {application.lieu}
+              </p>
+            )}
             
             {/* Deadline display with alerts */}
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 text-sm mt-2">
               <Clock className="w-3 h-3 text-gray-400" />
               
               {/* ALERT: Expired */}
@@ -263,6 +289,12 @@ CV_Soraya_Koite_${application.entreprise ? application.entreprise.replace(/\s+/g
           
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
+              {/* Badge "À COMPLÉTER" if incomplete */}
+              {isIncomplete && (
+                <Badge variant="destructive" className="bg-orange-500 text-white text-xs">
+                  ⚠️ À COMPLÉTER
+                </Badge>
+              )}
               <Badge variant={application.statut === 'soumise' ? "default" : "outline"}>
                 {application.statut.toUpperCase()}
               </Badge>

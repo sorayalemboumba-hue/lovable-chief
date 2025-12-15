@@ -5,7 +5,7 @@ import { parseHtmlEmailContent, htmlToCleanText } from '@/lib/htmlEmailParser';
 import { parseTextJobOffer } from '@/lib/textJobParser';
 import { parsePDFFile } from '@/lib/pdfParser';
 import { extractJobContent } from '@/lib/emailCleaner';
-import { analyzeJobText, checkDuplicate, SmartAnalysisResult } from '@/lib/smartTextAnalyzer';
+import { analyzeJobText, checkDuplicate, cleanTitle, extractCompany, SmartAnalysisResult } from '@/lib/smartTextAnalyzer';
 import { supabase } from '@/integrations/supabase/client';
 import { evaluateExclusionRules, shouldExcludeOffer, getExclusionReason, ExclusionFlags } from '@/lib/exclusionRules';
 import { Button } from '@/components/ui/button';
@@ -230,12 +230,30 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     }
     
     const job = parseTextJobOffer(content);
+    
+    // Smart cleaning: if title is a URL, try to extract company from text
+    let finalJob = job;
     if (job) {
-      handleAnalyze([{ ...job, url: sourceUrl || linkUrl || undefined }], content);
+      const cleanedTitle = cleanTitle(job.poste);
+      const detectedCompany = extractCompany(content);
+      
+      finalJob = {
+        ...job,
+        poste: cleanedTitle || 'Nouveau Poste',
+        entreprise: detectedCompany || job.entreprise || '',
+        url: sourceUrl || linkUrl || undefined
+      };
+    }
+    
+    if (finalJob) {
+      handleAnalyze([finalJob], content);
     } else {
+      // Fallback: try to detect company from raw text
+      const detectedCompany = extractCompany(content);
+      
       handleAnalyze([{
-        entreprise: 'À déterminer',
-        poste: content.substring(0, 50) + '...',
+        entreprise: detectedCompany || '',
+        poste: '',
         lieu: 'Suisse',
         canal: 'direct',
         source: 'Texte',
@@ -449,9 +467,14 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     // Merge smart analysis data
     const smartData = result.smartAnalysis;
     
+    // Clean title: if it's a URL, leave empty for user to complete
+    const cleanedPoste = cleanTitle(result.job.poste);
+    const hasValidTitle = cleanedPoste && cleanedPoste.trim() !== '';
+    const hasValidCompany = result.job.entreprise && result.job.entreprise.trim() !== '';
+    
     const applicationToImport: Partial<Application> = {
-      entreprise: result.job.entreprise,
-      poste: result.job.poste,
+      entreprise: hasValidCompany ? result.job.entreprise : '',
+      poste: hasValidTitle ? cleanedPoste : '',
       lieu: result.job.lieu,
       deadline: result.aiAnalysis?.deadline || smartData?.deadline || defaultDeadline.toISOString().split('T')[0],
       statut: 'à compléter',

@@ -261,3 +261,53 @@ export function checkDuplicate(
     app.entreprise.toLowerCase().trim() === normalizedEntreprise
   );
 }
+
+/**
+ * Clean and validate title - if it's a URL, return empty string
+ */
+export function cleanTitle(title: string | undefined): string {
+  if (!title) return '';
+  const trimmed = title.trim();
+  
+  // If title starts with http(s), it's a URL, not a title
+  if (trimmed.toLowerCase().startsWith('http')) {
+    return '';
+  }
+  
+  return trimmed;
+}
+
+/**
+ * Extract company name from text using semantic patterns
+ */
+export function extractCompany(text: string): string | null {
+  const lowerText = text.toLowerCase();
+  
+  // Patterns to find company names
+  const companyPatterns = [
+    // French patterns
+    /(?:chez|entreprise|société|employeur)\s*[:\-]?\s*([A-ZÀ-Ü][A-Za-zÀ-ÿ\s&.-]+?)(?:\s*[,.\n]|$)/gi,
+    // Company name often appears in ALL CAPS
+    /\b([A-Z][A-Z\s&.-]{2,20})\b/g,
+    // After "Rejoindre" or "Rejoignez"
+    /(?:rejoindre|rejoignez)\s+([A-ZÀ-Ü][A-Za-zÀ-ÿ\s&.-]+?)(?:\s*[,.\n!]|$)/gi,
+    // Before location keywords
+    /([A-ZÀ-Ü][A-Za-zÀ-ÿ\s&.-]+?)\s*(?:à|basé à|situé à|,\s*(?:Paris|Lyon|Genève|Zurich|Lausanne))/gi,
+  ];
+  
+  for (const pattern of companyPatterns) {
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      if (match[1]) {
+        const company = match[1].trim();
+        // Filter out common false positives
+        const excludedWords = ['cv', 'lettre', 'motivation', 'poste', 'candidature', 'offre', 'emploi', 'job', 'cdi', 'cdd'];
+        if (!excludedWords.includes(company.toLowerCase()) && company.length > 1 && company.length < 50) {
+          return company;
+        }
+      }
+    }
+  }
+  
+  return null;
+}
