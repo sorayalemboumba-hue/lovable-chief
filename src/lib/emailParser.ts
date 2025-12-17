@@ -6,6 +6,7 @@ export interface ParsedJob {
   motsCles?: string;
   source: string;
   url?: string; // URL extracted from HTML links
+  description?: string; // Full job description for AI analysis
   exclusionFlags?: {
     isStage: boolean;
     isOutsideGEVD: boolean;
