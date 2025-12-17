@@ -144,39 +144,57 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     // Run AI analysis for non-excluded, non-duplicate jobs
     const userProfile = `Profil professionnel avec expérience en gestion de projet, coordination d'équipes et événementiel. Basée en Suisse romande (Genève/Vaud). Bachelor en Hospitality Management de l'EHL. Compétences: leadership, communication, organisation, gestion de crise.`;
     
+    console.log('[SmartImport] Starting AI analysis for', initialResults.length, 'jobs');
+    
     for (let i = 0; i < initialResults.length; i++) {
       const result = initialResults[i];
-      if (result.isExcluded || result.isDuplicate) continue;
+      if (result.isExcluded || result.isDuplicate) {
+        console.log('[SmartImport] Skipping job', i, '- excluded or duplicate');
+        continue;
+      }
       
       try {
+        // Build comprehensive job description for AI analysis
         const jobDescription = `
-          Poste: ${result.job.poste}
-          Entreprise: ${result.job.entreprise}
-          Lieu: ${result.job.lieu}
-          Compétences: ${result.job.motsCles || ''}
-          Description: ${result.job.description || ''}
-        `;
+Poste: ${result.job.poste || 'Non spécifié'}
+Entreprise: ${result.job.entreprise || 'Non spécifiée'}
+Lieu: ${result.job.lieu || 'Non spécifié'}
+Compétences: ${result.job.motsCles || ''}
+Description: ${result.job.description || rawText || ''}
+        `.trim();
+        
+        console.log('[SmartImport] Calling analyze-job-offer for:', result.job.poste);
         
         const { data, error } = await supabase.functions.invoke('analyze-job-offer', {
-          body: { jobDescription, userProfile }
+          body: { jobDescription, userProfile, url: result.job.url || '' }
         });
         
-        if (error) throw error;
+        if (error) {
+          console.error('[SmartImport] AI analysis error:', error);
+          throw error;
+        }
+        
+        console.log('[SmartImport] AI analysis SUCCESS:', {
+          compatibility: data.compatibility,
+          matchingSkills: data.matching_skills?.length || 0,
+          missingRequirements: data.missing_requirements?.length || 0,
+          requiredDocuments: data.required_documents?.length || 0
+        });
         
         setAnalysisResults(prev => prev.map((r, idx) => 
           idx === i ? {
             ...r,
             aiAnalysis: {
-              compatibility: data.compatibility || 50,
+              compatibility: data.compatibility ?? 50,
               matchingSkills: data.matching_skills || [],
               missingRequirements: data.missing_requirements || [],
               keywords: data.keywords || '',
-              recommendedChannel: data.recommended_channel || '',
-              requiredDocuments: data.required_documents || smartAnalysisData?.requiredDocuments || ['CV'],
+              recommendedChannel: data.recommended_channel || 'direct',
+              requiredDocuments: data.required_documents || smartAnalysisData?.requiredDocuments || ['CV', 'Lettre de motivation'],
               deadline: data.deadline || smartAnalysisData?.deadline || '',
               contacts: data.contacts || [],
               excluded: data.excluded || false,
-              exclusionReason: data.exclusion_reason,
+              exclusionReason: data.exclusion_reason || null,
               reasoning: data.reasoning || '',
               warning: data.warning
             },
@@ -240,20 +258,25 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
       
       finalJob = {
         ...job,
-        poste: cleanedTitle || '',
+        poste: cleanedTitle || job.poste || '',
         entreprise: detectedCompany || job.entreprise || '',
         lieu: detectedLocation || job.lieu || 'Suisse',
+        // CRITICAL: Pass full content as description for AI analysis
+        description: content,
+        motsCles: job.motsCles || '',
         url: sourceUrl || linkUrl || undefined
       };
     }
     
     if (finalJob) {
+      console.log('[SmartImport] Calling AI analysis with job:', finalJob.poste, finalJob.entreprise);
       handleAnalyze([finalJob], content);
     } else {
       // Fallback: try to detect company and location from raw text
       const detectedCompany = extractCompany(content);
       const detectedLocation = extractLocationFromLine(content);
       
+      console.log('[SmartImport] Fallback mode - calling AI analysis');
       handleAnalyze([{
         entreprise: detectedCompany || '',
         poste: '',
@@ -275,10 +298,11 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     }
     
     const isHtmlContent = /<[a-z][\s\S]*>/i.test(emailContent);
-    let jobs: (ParsedJob & { url?: string })[] = [];
+    let jobs: (ParsedJob & { url?: string; description?: string })[] = [];
+    const cleanedContent = isHtmlContent ? htmlToCleanText(emailContent) : emailContent;
     
     if (isHtmlContent) {
-      console.log('Parsing HTML email content...');
+      console.log('[SmartImport] Parsing HTML email content...');
       jobs = parseHtmlEmailContent(emailContent);
       
       if (jobs.length > 0) {
@@ -289,22 +313,25 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
     
     // Fallback to text parsing
     if (jobs.length === 0) {
-      const cleanedContent = isHtmlContent ? htmlToCleanText(emailContent) : extractJobContent(emailContent);
-      jobs = parseJobAlert(cleanedContent);
+      const extractedContent = isHtmlContent ? htmlToCleanText(emailContent) : extractJobContent(emailContent);
+      jobs = parseJobAlert(extractedContent);
     }
     
-    // Apply manual source URL to all jobs if provided
-    if (sourceUrl) {
-      jobs = jobs.map(job => ({ ...job, url: job.url || sourceUrl }));
-    }
+    // Add description to all jobs for AI analysis
+    jobs = jobs.map(job => ({
+      ...job,
+      description: cleanedContent,
+      url: job.url || sourceUrl || undefined
+    }));
     
     if (jobs.length > 0) {
-      handleAnalyze(jobs, emailContent);
+      console.log('[SmartImport] Email: calling AI analysis for', jobs.length, 'jobs');
+      handleAnalyze(jobs, cleanedContent);
     } else {
-      const cleanedContent = isHtmlContent ? htmlToCleanText(emailContent) : emailContent;
       const job = parseTextJobOffer(cleanedContent);
       if (job) {
-        handleAnalyze([{ ...job, url: sourceUrl || undefined }], cleanedContent);
+        console.log('[SmartImport] Email fallback: calling AI analysis');
+        handleAnalyze([{ ...job, description: cleanedContent, url: sourceUrl || undefined }], cleanedContent);
       } else {
         toast.error('Aucune offre détectée. Essayez de coller le texte brut.');
       }
@@ -422,6 +449,7 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
       return;
     }
     
+    console.log('[SmartImport] Spontaneous: calling AI analysis for', spontaneousForm.entreprise);
     handleAnalyze([{
       entreprise: spontaneousForm.entreprise,
       poste: spontaneousForm.poste,
@@ -429,7 +457,7 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
       canal: 'spontanée',
       source: 'Spontanée',
       motsCles: spontaneousForm.notes,
-      description: spontaneousForm.notes,
+      description: spontaneousForm.notes || `Candidature spontanée chez ${spontaneousForm.entreprise} pour le poste de ${spontaneousForm.poste}`,
       url: sourceUrl || undefined
     }], spontaneousForm.notes);
   };
@@ -487,10 +515,10 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
       url: result.job.url,
       sourceUrl: sourceUrl || result.job.url,
       compatibility: result.aiAnalysis?.compatibility,
-      matchingSkills: result.aiAnalysis?.matchingSkills,
-      missingRequirements: result.aiAnalysis?.missingRequirements,
+      matchingSkills: result.aiAnalysis?.matchingSkills || [],
+      missingRequirements: result.aiAnalysis?.missingRequirements || [],
       recommended_channel: isOCE ? 'OCE' : result.aiAnalysis?.recommendedChannel,
-      requiredDocuments: result.aiAnalysis?.requiredDocuments || smartData?.requiredDocuments || (isOCE ? ['CV', 'Lettre de motivation', 'Preuve de candidature'] : undefined),
+      requiredDocuments: result.aiAnalysis?.requiredDocuments || smartData?.requiredDocuments || (isOCE ? ['CV', 'Lettre de motivation', 'Preuve de candidature'] : ['CV', 'Lettre de motivation']),
       applicationEmail: result.aiAnalysis?.contacts?.[0]?.email || smartData?.applicationEmail,
       // NEW FIELDS from smart analysis
       applicationMethod: smartData?.applicationMethod,
@@ -499,6 +527,13 @@ export function SmartImportModal({ open, onClose, onImport, existingApplications
       isExpired: smartData?.isExpired,
       deadlineMissing: smartData?.deadlineMissing && !result.aiAnalysis?.deadline,
     };
+    
+    console.log('[SmartImport] Importing with AI data:', {
+      compatibility: applicationToImport.compatibility,
+      matchingSkills: applicationToImport.matchingSkills?.length,
+      missingRequirements: applicationToImport.missingRequirements?.length,
+      requiredDocuments: applicationToImport.requiredDocuments?.length
+    });
     
     try {
       await onImport([applicationToImport]);
